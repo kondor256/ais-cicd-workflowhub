@@ -84,6 +84,38 @@ Use the imperative mood ("add", not "added"), keep the first line under about 72
 
 `app`, `devops`, `enabler`, `backend`, `frontend`, `docker`, `ci`, `security`, `bug`, `release`, `priority:high|medium|low`, `role:po|dev|devops`
 
+## Run locally
+
+### Prerequisites
+- Python 3.12+
+- Node.js 20+ and npm
+
+### Backend (Django REST Framework)
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate          # Windows (macOS/Linux: source .venv/bin/activate)
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver      # http://localhost:8000
+```
+Check it: open http://localhost:8000/api/health/ and you should see `{"status": "ok"}`.
+
+Run the tests:
+```bash
+python manage.py test
+```
+
+### Frontend (React + Vite)
+In a second terminal:
+```bash
+cd frontend
+npm install
+npm run dev                     # http://localhost:5173
+```
+Open http://localhost:5173. The page should show **API: online**.
+If you stop the backend and reload, it shows **API: unreachable**.
+
 ## Licence
 
 See [LICENSE](LICENSE).
