@@ -15,10 +15,11 @@ workflowhub/
 ├── backend/        Django + DRF (accounts/, workflows/), Dockerfile, .env.example
 ├── frontend/       React + Vite, Dockerfile (multi-stage, nginx), .env.example
 ├── docker-compose.yml   backend + frontend + postgres
+├── .env.example    variables for docker-compose.yml
 └── README.md
 ```
 
-Not everything exists yet. The backend and frontend arrive in WFH-02, Docker in WFH-04 and CI in WFH-05, WFH-08 and WFH-09. Run and setup instructions will be added with those stories.
+Not everything exists yet. CI arrives in WFH-05, WFH-08 and WFH-09, and the `accounts/` and `workflows/` apps in later stories.
 
 ## Configuration
 
@@ -32,6 +33,7 @@ All configuration comes from environment variables. No secrets are committed; on
 | `ALLOWED_HOSTS` | backend | No | empty | `localhost,127.0.0.1` |
 | `CORS_ALLOWED_ORIGINS` | backend | No | not used yet (added with WFH-15) | `http://localhost:5173` |
 | `VITE_API_URL` | frontend | No | empty (use the Vite dev proxy for `/api`) | `http://localhost:8000` |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Docker Compose (db) | Yes, for Compose | none | see root `.env.example` |
 
 Copy the example files to create your own local files. `.env` files are ignored by git:
 
@@ -132,6 +134,33 @@ npm run dev                     # http://localhost:5173
 ```
 Open http://localhost:5173. The page should show **API: online**.
 If you stop the backend and reload, it shows **API: unreachable**.
+
+## Run with Docker
+
+### Prerequisites
+- Docker Desktop (Docker Engine with Compose v2)
+
+### Whole stack (backend + frontend + PostgreSQL)
+```bash
+copy .env.example .env          # macOS/Linux: cp .env.example .env
+# edit .env: set DJANGO_SECRET_KEY and POSTGRES_PASSWORD
+docker compose up --build
+```
+- Frontend: http://localhost:8080
+- Backend health check: http://localhost:8000/api/health/ (should return `{"status": "ok"}`)
+
+The backend container runs `python manage.py migrate` and then starts gunicorn. Stop with `Ctrl+C` or `docker compose down`. Add `-v` to also delete the database volume.
+
+> **Known issue:** the frontend (port 8080) calls the backend (port 8000) directly, so the browser blocks the request and the page shows **API: unreachable**. This is a CORS problem tracked as WFH-15.
+
+The root `.env` is only for Compose. `backend/.env` is only for running the backend without Docker. Neither is copied into an image.
+
+### Build the images separately
+```bash
+docker build -t workflowhub-backend ./backend
+docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-frontend ./frontend
+```
+`VITE_API_URL` is baked into the frontend bundle at build time, so changing it needs a rebuild.
 
 ## Licence
 

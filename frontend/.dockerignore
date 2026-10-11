@@ -1,0 +1,8 @@
+# Keep secrets, local build output and caches out of the image
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.git
+npm-debug.log*
