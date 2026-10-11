@@ -1,0 +1,10 @@
+# Keep secrets, local data and caches out of the image
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+!.env.example
+db.sqlite3
+.git
+.pytest_cache
