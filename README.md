@@ -24,7 +24,23 @@ Not everything exists yet. The backend and frontend arrive in WFH-02, Docker in 
 
 All configuration comes from environment variables. No secrets are committed; only `.env.example` files are.
 
-`DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `DATABASE_URL`, `VITE_API_URL`
+| Variable | Used by | Required | Default | Example |
+|---|---|---|---|---|
+| `DJANGO_SECRET_KEY` | backend | **Yes** | none (the backend will not start without it) | `change-me` |
+| `DATABASE_URL` | backend | **Yes** | none (the backend will not start without it) | `sqlite:///db.sqlite3` or `postgres://user:password@db:5432/workflowhub` |
+| `DEBUG` | backend | No | `False` | `True` (local only) |
+| `ALLOWED_HOSTS` | backend | No | empty | `localhost,127.0.0.1` |
+| `CORS_ALLOWED_ORIGINS` | backend | No | not used yet (added with WFH-15) | `http://localhost:5173` |
+| `VITE_API_URL` | frontend | No | empty (use the Vite dev proxy for `/api`) | `http://localhost:8000` |
+
+Copy the example files to create your own local files. `.env` files are ignored by git:
+
+```bash
+copy backend\.env.example backend\.env        # macOS/Linux: cp backend/.env.example backend/.env
+copy frontend\.env.example frontend\.env      # optional
+```
+
+Real environment variables (Docker, CI) override values in `backend/.env`. CI jobs and Docker Compose must set `DJANGO_SECRET_KEY` and `DATABASE_URL` themselves. Never put real secrets in an `.env.example` file.
 
 ## Team workflow
 
@@ -96,6 +112,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate          # Windows (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
+copy .env.example .env          # macOS/Linux: cp .env.example .env
 python manage.py migrate
 python manage.py runserver      # http://localhost:8000
 ```
