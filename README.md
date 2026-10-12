@@ -31,7 +31,7 @@ All configuration comes from environment variables. No secrets are committed; on
 | `DATABASE_URL` | backend | **Yes** | none (the backend will not start without it) | `sqlite:///db.sqlite3` or `postgres://user:password@db:5432/workflowhub` |
 | `DEBUG` | backend | No | `False` | `True` (local only) |
 | `ALLOWED_HOSTS` | backend | No | empty | `localhost,127.0.0.1` |
-| `CORS_ALLOWED_ORIGINS` | backend | No | not used yet (added with WFH-15) | `http://localhost:5173` |
+| `CORS_ALLOWED_ORIGINS` | backend | No | empty (no cross-origin calls allowed) | `http://localhost:8080` (Docker frontend) |
 | `VITE_API_URL` | frontend | No | empty (use the Vite dev proxy for `/api`) | `http://localhost:8000` |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Docker Compose (db) | Yes, for Compose | none | see root `.env.example` |
 
@@ -151,7 +151,7 @@ docker compose up --build
 
 The backend container runs `python manage.py migrate` and then starts gunicorn. Stop with `Ctrl+C` or `docker compose down`. Add `-v` to also delete the database volume.
 
-> **Known issue:** the frontend (port 8080) calls the backend (port 8000) directly, so the browser blocks the request and the page shows **API: unreachable**. This is a CORS problem tracked as WFH-15.
+The frontend (port 8080) calls the backend (port 8000) directly, which is a different origin. The backend therefore allows the frontend origin through `CORS_ALLOWED_ORIGINS` (default in Compose: `http://localhost:8080`). If you serve the frontend from another address, add it to that variable in `.env`.
 
 The root `.env` is only for Compose. `backend/.env` is only for running the backend without Docker. Neither is copied into an image.
 
