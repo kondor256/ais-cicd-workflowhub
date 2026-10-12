@@ -162,6 +162,14 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 ```
 `VITE_API_URL` is baked into the frontend bundle at build time, so changing it needs a rebuild.
 
+## Continuous integration (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. The `build-images` job builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+
+The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
+
 ## Licence
 
 See [LICENSE](LICENSE).
+
+<Change for testing build>
