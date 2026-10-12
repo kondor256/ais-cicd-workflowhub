@@ -19,7 +19,7 @@ workflowhub/
 └── README.md
 ```
 
-Not everything exists yet. CI arrives in WFH-05, WFH-08 and WFH-09, and the `accounts/` and `workflows/` apps in later stories.
+Not everything exists yet. CI arrives in WFH-05, WFH-08 and WFH-09, and the `workflows/` app in a later story. The `accounts/` app currently provides registration only; login comes in WFH-07.
 
 ## Configuration
 
@@ -125,6 +125,15 @@ Run the tests:
 python manage.py test
 ```
 
+### API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/health/` | Health check, returns `{"status": "ok"}` |
+| POST | `/api/auth/register/` | Create an account (see below) |
+
+**Register** takes JSON `{"username", "email", "password", "password2"}`. All four are required, `email` must be valid, and `password` must match `password2` and pass Django's password validators (length, common passwords, numeric-only, similarity to username/email). It returns `201` with `{"username", "email"}` only; the password is stored hashed and never returned. Validation errors return `400` with `{field: [messages]}`.
+
 ### Frontend (React + Vite)
 In a second terminal:
 ```bash
@@ -134,6 +143,16 @@ npm run dev                     # http://localhost:5173
 ```
 Open http://localhost:5173. The page should show **API: online**.
 If you stop the backend and reload, it shows **API: unreachable**.
+
+Pages (React Router):
+
+| Route | Page |
+|---|---|
+| `/` | Home, with the API status |
+| `/register` | Registration form (calls `POST /api/auth/register/`, then goes to `/login`) |
+| `/login` | Placeholder until WFH-07 |
+
+Check the code with `npm run lint` and `npm run build`.
 
 ## Run with Docker
 
