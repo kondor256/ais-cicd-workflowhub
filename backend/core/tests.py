@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APITestCase
 
 
@@ -16,6 +16,22 @@ class HealthCheckTests(APITestCase):
     def test_health_rejects_post(self):
         response = self.client.post('/api/health/')
         self.assertEqual(response.status_code, 405)
+
+
+class CorsTests(APITestCase):
+    """The browser may call the API from the frontend origin (WFH-15)."""
+
+    FRONTEND = 'http://localhost:8080'
+
+    @override_settings(CORS_ALLOWED_ORIGINS=[FRONTEND])
+    def test_allowed_origin_gets_cors_header(self):
+        response = self.client.get('/api/health/', headers={'Origin': self.FRONTEND})
+        self.assertEqual(response.headers.get('Access-Control-Allow-Origin'), self.FRONTEND)
+
+    @override_settings(CORS_ALLOWED_ORIGINS=[FRONTEND])
+    def test_other_origin_gets_no_cors_header(self):
+        response = self.client.get('/api/health/', headers={'Origin': 'http://evil.example'})
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
 
 
 class RequiredSettingsTests(SimpleTestCase):
