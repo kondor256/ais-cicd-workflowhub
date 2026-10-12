@@ -1,0 +1,24 @@
+version: 2.1
+
+jobs:
+  build-images:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      # Docker builds run on a separate remote Docker engine (default version)
+      - setup_remote_docker
+      - run:
+          name: Build backend image
+          command: docker build -t workflowhub-backend:ci ./backend
+      - run:
+          name: Build frontend image
+          # VITE_API_URL is a CircleCI project environment variable
+          # (Project Settings > Environment Variables), not set in this file
+          command: docker build --build-arg VITE_API_URL="$VITE_API_URL" -t workflowhub-frontend:ci ./frontend
+
+workflows:
+  ci:
+    # No branch filter: runs on every branch
+    jobs:
+      - build-images
