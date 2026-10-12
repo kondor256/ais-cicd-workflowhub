@@ -187,6 +187,16 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
 
+## Continuous integration (CircleCI)
+
+`.circleci/config.yml` builds the same two Docker images as the GitHub Actions workflow, also without pushing them. The `build-images` job runs on every branch (workflow `ci`). It uses the `cimg/base:stable` executor and `setup_remote_docker`, because Docker builds run on a separate remote Docker engine. There is no layer cache in this pipeline.
+
+To use it:
+
+1. In CircleCI, set up the GitHub repository as a project.
+2. Add `VITE_API_URL` under Project Settings → Environment Variables. The frontend build reads it as `$VITE_API_URL`; it is not in the YAML. Without it the frontend is built with an empty API URL.
+3. Push a branch. The run appears in CircleCI, and the status is also shown on the commit or PR in GitHub.
+
 ## Licence
 
 See [LICENSE](LICENSE).
