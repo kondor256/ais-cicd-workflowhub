@@ -8,3 +8,34 @@ main {
   margin: 4rem auto;
   padding: 0 1rem;
 }
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem;
+  font: inherit;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: #b00020;
+}
+
+.error {
+  margin: 0.25rem 0 0;
+  color: #b00020;
+  font-size: 0.875rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  font: inherit;
+}

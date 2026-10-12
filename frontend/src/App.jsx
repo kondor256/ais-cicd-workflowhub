@@ -1,23 +1,17 @@
-import { useEffect, useState } from 'react'
-import { getHealth } from './api/client'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import Home from './pages/Home'
+import Login from './pages/Login'
+import Register from './pages/Register'
 
 function App() {
-  const [apiStatus, setApiStatus] = useState('checking')
-
-  useEffect(() => {
-    getHealth()
-      .then((data) => setApiStatus(data.status === 'ok' ? 'online' : 'unreachable'))
-      .catch(() => setApiStatus('unreachable'))
-  }, [])
-
   return (
-    <main>
-      <h1>WorkFlowHub</h1>
-      <p>Workflow management for remote teams.</p>
-      <p role="status">
-        API: {apiStatus === 'checking' ? 'checking…' : apiStatus}
-      </p>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
