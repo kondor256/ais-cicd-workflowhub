@@ -65,6 +65,8 @@ export const api = {
   get: (path) => request(path),
   post: (path, body) =>
     request(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
+  patch: (path, body) =>
+    request(path, { method: 'PATCH', body: JSON.stringify(body) }),
 }
 
 export const getHealth = () => api.get('/api/health/')

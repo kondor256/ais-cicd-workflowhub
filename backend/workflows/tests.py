@@ -67,3 +67,46 @@ class WorkflowItemTests(APITestCase):
         self.assertEqual(self.client.get(self.url).status_code, 401)
         self.assertEqual(self.client.post(self.url, {'title': 'x'}).status_code, 401)
         self.assertFalse(WorkflowItem.objects.exists())
+
+
+class WorkflowItemStatusUpdateTests(APITestCase):
+    def setUp(self):
+        self.alice = User.objects.create_user('alice', 'alice@example.com', 'Tr1cky-horse-staple')
+        self.bob = User.objects.create_user('bob', 'bob@example.com', 'Tr1cky-horse-staple')
+        self.item = WorkflowItem.objects.create(title='Write report', owner=self.alice)
+        self.url = f'/api/workflows/items/{self.item.id}/'
+        self.client.force_authenticate(self.alice)
+
+    def test_patch_status_returns_200_and_persists(self):
+        response = self.client.patch(self.url, {'status': 'in_progress'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'in_progress')
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'in_progress')
+
+    def test_invalid_status_rejected_and_unchanged(self):
+        response = self.client.patch(self.url, {'status': 'done!'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('status', response.json())
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'pending')
+
+    def test_other_users_item_is_404_and_unchanged(self):
+        self.client.force_authenticate(self.bob)
+        response = self.client.patch(self.url, {'status': 'completed'})
+        self.assertEqual(response.status_code, 404)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'pending')
+
+    def test_unauthenticated_patch_is_401(self):
+        self.client.force_authenticate(None)
+        response = self.client.patch(self.url, {'status': 'completed'})
+        self.assertEqual(response.status_code, 401)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, 'pending')
+
+    def test_updated_at_changes(self):
+        before = self.item.updated_at
+        self.client.patch(self.url, {'status': 'completed'})
+        self.item.refresh_from_db()
+        self.assertGreater(self.item.updated_at, before)
