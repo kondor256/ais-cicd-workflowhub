@@ -17,6 +17,8 @@ class HealthCheckTests(APITestCase):
         response = self.client.post('/api/health/')
         self.assertEqual(response.status_code, 405)
 
+    def test_demo_fail(self):
+        self.assertEqual(1, 2)
 
 class CorsTests(APITestCase):
     """The browser may call the API from the frontend origin (WFH-15)."""
