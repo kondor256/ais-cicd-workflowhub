@@ -28,6 +28,9 @@ function Workflows() {
   // The API returns newest first, so a new item goes to the top.
   const handleCreated = (item) => setItems((current) => [item, ...current])
 
+  const handleItemSaved = (saved) =>
+    setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))
+
   // Update the list straight away; put the old status back if the server refuses.
   const handleStatusChange = async (id, status) => {
     const previous = items.find((item) => item.id === id)?.status
@@ -54,7 +57,13 @@ function Workflows() {
       <h2>Your items</h2>
       {loadError && <p className="error" role="alert">{loadError}</p>}
       {updateError && <p className="error" role="alert">{updateError}</p>}
-      {loaded && <WorkflowList items={items} onStatusChange={handleStatusChange} />}
+      {loaded && (
+        <WorkflowList
+          items={items}
+          onStatusChange={handleStatusChange}
+          onItemSaved={handleItemSaved}
+        />
+      )}
     </main>
   )
 }
