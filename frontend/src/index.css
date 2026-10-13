@@ -65,3 +65,32 @@ button {
   color: #555;
   font-size: 0.875rem;
 }
+
+.status-badge {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+
+.status-pending {
+  color: #5f6368;
+  background: #f1f3f4;
+}
+
+.status-in_progress {
+  color: #8a4b00;
+  background: #fff3e0;
+}
+
+.status-completed {
+  color: #0b6b2e;
+  background: #e6f4ea;
+}
+
+.status-select {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
