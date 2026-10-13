@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { listItems, updateItem } from '../api/workflows'
+import { deleteItem, listItems, updateItem } from '../api/workflows'
 import WorkflowForm from '../components/WorkflowForm'
 import WorkflowList from '../components/WorkflowList'
 
@@ -30,6 +30,16 @@ function Workflows() {
 
   const handleItemSaved = (saved) =>
     setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))
+
+  const handleDelete = async (id) => {
+    setUpdateError('')
+    try {
+      await deleteItem(id)
+      setItems((current) => current.filter((item) => item.id !== id))
+    } catch {
+      setUpdateError('Could not delete the item. Please try again.')
+    }
+  }
 
   // Update the list straight away; put the old status back if the server refuses.
   const handleStatusChange = async (id, status) => {
@@ -62,6 +72,7 @@ function Workflows() {
           items={items}
           onStatusChange={handleStatusChange}
           onItemSaved={handleItemSaved}
+          onDelete={handleDelete}
         />
       )}
     </main>

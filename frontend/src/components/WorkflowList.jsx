@@ -3,8 +3,10 @@ import { STATUS_LABELS } from '../statuses'
 import StatusBadge from './StatusBadge'
 import WorkflowEditForm from './WorkflowEditForm'
 
-function WorkflowList({ items, onStatusChange, onItemSaved }) {
+function WorkflowList({ items, onStatusChange, onItemSaved, onDelete }) {
   const [editingId, setEditingId] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   if (items.length === 0) {
     return <p>You have no workflow items yet</p>
@@ -13,6 +15,13 @@ function WorkflowList({ items, onStatusChange, onItemSaved }) {
   const handleSaved = (item) => {
     onItemSaved(item)
     setEditingId(null)
+  }
+
+  const handleConfirmDelete = async (id) => {
+    setDeleting(true)
+    await onDelete(id)
+    setDeleting(false)
+    setConfirmingId(null)
   }
 
   return (
@@ -55,7 +64,26 @@ function WorkflowList({ items, onStatusChange, onItemSaved }) {
             </label>{' '}
             <button type="button" onClick={() => setEditingId(item.id)}>
               Edit
-            </button>
+            </button>{' '}
+            {confirmingId === item.id ? (
+              <span role="alertdialog" aria-label="Confirm delete">
+                Delete this item?{' '}
+                <button
+                  type="button"
+                  onClick={() => handleConfirmDelete(item.id)}
+                  disabled={deleting}
+                >
+                  Confirm
+                </button>{' '}
+                <button type="button" onClick={() => setConfirmingId(null)} disabled={deleting}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmingId(item.id)}>
+                Delete
+              </button>
+            )}
           </li>
         ),
       )}

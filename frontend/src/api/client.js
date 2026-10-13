@@ -49,8 +49,9 @@ async function request(path, options = {}) {
       ...(token ? { Authorization: `Token ${token}` } : {}),
     },
   })
-  // DRF error bodies look like {field: [messages]}; the body may be empty or not JSON.
-  const body = await response.json().catch(() => null)
+  // 204 No Content has an empty body, so there is nothing to parse. Other DRF error bodies look
+  // like {field: [messages]}; they may still be empty or not JSON.
+  const body = response.status === 204 ? null : await response.json().catch(() => null)
   if (response.status === 401) {
     // The token is missing, expired or revoked: drop it so the app sends the user to log in.
     setToken(null)
@@ -67,6 +68,7 @@ export const api = {
     request(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
   patch: (path, body) =>
     request(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: (path) => request(path, { method: 'DELETE' }),
 }
 
 export const getHealth = () => api.get('/api/health/')
