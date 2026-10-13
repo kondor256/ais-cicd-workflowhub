@@ -221,6 +221,53 @@ To use it:
 2. Add `VITE_API_URL` under Project Settings → Environment Variables. The frontend build reads it as `$VITE_API_URL`; it is not in the YAML. Without it the frontend is built with an empty API URL.
 3. Push a branch. The run appears in CircleCI, and the status is also shown on the commit or PR in GitHub.
 
+## Releases
+
+`.github/workflows/release.yml` runs when a tag starting with `v` is pushed. It builds the backend and frontend images and pushes them to the GitHub Container Registry (ghcr.io). It logs in with the built-in `GITHUB_TOKEN`, so no extra secret is needed. The frontend build reads the repository variable `VITE_API_URL`, as in CI.
+
+### How to tag a release
+
+Merge everything into `main` first, then:
+
+```bash
+git checkout main
+git pull
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Use `vMAJOR.MINOR.PATCH`. A tag with a suffix, such as `v1.1.0-rc.1`, is treated as a pre-release. The run appears in the **Actions** tab as **Release**.
+
+### Where the images are
+
+| Image | Tags |
+|---|---|
+| `ghcr.io/<owner>/workflowhub-backend` | `1.0.0` (the tag without the `v`), `latest` |
+| `ghcr.io/<owner>/workflowhub-frontend` | `1.0.0`, `latest` |
+
+`<owner>` is the GitHub user or organisation in lower case. `latest` is moved only by stable tags, never by pre-releases. After the first push, the packages appear under the repository's **Packages** section. They are private by default; change the visibility in the package settings if others must pull them without logging in.
+
+### How to run a released version
+
+The backend still needs the environment variables from the configuration table, and a PostgreSQL database. The easiest way is to pull the images and start them with the same Compose file, using an override file that replaces `build:` with `image:`:
+
+```yaml
+# docker-compose.release.yml
+services:
+  backend:
+    image: ghcr.io/<owner>/workflowhub-backend:1.0.0
+  frontend:
+    image: ghcr.io/<owner>/workflowhub-frontend:1.0.0
+```
+
+```bash
+docker login ghcr.io          # only needed if the packages are private
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull backend frontend
+docker compose -f docker-compose.yml -f docker-compose.release.yml up --no-build
+```
+
+Because `VITE_API_URL` is baked into the frontend bundle at build time, the published frontend image calls the API address that was set when the release was built.
+
 ## Licence
 
 See [LICENSE](LICENSE).
