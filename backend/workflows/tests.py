@@ -147,3 +147,27 @@ class WorkflowItemEditTests(APITestCase):
         self.assertEqual(response.status_code, 404)
         self.item.refresh_from_db()
         self.assertEqual(self.item.title, 'Write report')
+
+
+class WorkflowItemDeleteTests(APITestCase):
+    def setUp(self):
+        self.alice = User.objects.create_user('alice', 'alice@example.com', 'Tr1cky-horse-staple')
+        self.bob = User.objects.create_user('bob', 'bob@example.com', 'Tr1cky-horse-staple')
+        self.item = WorkflowItem.objects.create(title='Write report', owner=self.alice)
+        self.url = f'/api/workflows/items/{self.item.id}/'
+        self.client.force_authenticate(self.alice)
+
+    def test_delete_own_item_returns_204_and_then_404(self):
+        self.assertEqual(self.client.delete(self.url).status_code, 204)
+        self.assertFalse(WorkflowItem.objects.filter(id=self.item.id).exists())
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_other_users_item_is_404_and_still_exists(self):
+        self.client.force_authenticate(self.bob)
+        self.assertEqual(self.client.delete(self.url).status_code, 404)
+        self.assertTrue(WorkflowItem.objects.filter(id=self.item.id).exists())
+
+    def test_unauthenticated_delete_is_401_and_item_still_exists(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.delete(self.url).status_code, 401)
+        self.assertTrue(WorkflowItem.objects.filter(id=self.item.id).exists())
