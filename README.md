@@ -183,7 +183,12 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 ## Continuous integration (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. The `build-images` job builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has two jobs:
+
+1. `test-backend` sets up Python 3.12 (with the pip cache), installs `backend/requirements.txt` and runs `python manage.py test` in the `backend/` folder. It uses `DATABASE_URL=sqlite:///db.sqlite3`, a plain value written in the YAML, so the tests need no database service.
+2. `build-images` runs only if `test-backend` passes (`needs: test-backend`). It builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+
+The tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
 The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
 
@@ -200,5 +205,3 @@ To use it:
 ## Licence
 
 See [LICENSE](LICENSE).
-
-<Change for testing build>
