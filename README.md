@@ -19,7 +19,7 @@ workflowhub/
 └── README.md
 ```
 
-Not everything exists yet. CI arrives in WFH-05, WFH-08 and WFH-09, and the `workflows/` app in a later story. The `accounts/` app currently provides registration only; login comes in WFH-07.
+Not everything exists yet. CI arrives in WFH-05, WFH-08 and WFH-09, and the `workflows/` app in a later story. The `accounts/` app provides registration, login, logout and a protected `/me/` endpoint (token authentication).
 
 ## Configuration
 
@@ -130,9 +130,18 @@ python manage.py test
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/health/` | Health check, returns `{"status": "ok"}` |
-| POST | `/api/auth/register/` | Create an account (see below) |
+| POST | `/api/auth/register/` | Create an account (public, see below) |
+| POST | `/api/auth/login/` | Log in and get a token (public, see below) |
+| POST | `/api/auth/logout/` | Delete the caller's token (needs a token) |
+| GET | `/api/auth/me/` | Current user, `{"username", "email"}` (needs a token) |
+
+Endpoints are private by default (`IsAuthenticated`); only `health`, `register` and `login` are public.
 
 **Register** takes JSON `{"username", "email", "password", "password2"}`. All four are required, `email` must be valid, and `password` must match `password2` and pass Django's password validators (length, common passwords, numeric-only, similarity to username/email). It returns `201` with `{"username", "email"}` only; the password is stored hashed and never returned. Validation errors return `400` with `{field: [messages]}`.
+
+**Login** takes JSON `{"username", "password"}` and returns `200` with `{"token": "..."}`. A wrong password or unknown user returns `400` with `{"detail": "Invalid username or password"}` and creates no token. Logging in again returns the same token.
+
+**Authenticated requests** send the header `Authorization: Token <token>`. A missing or invalid token returns `401`. **Logout** deletes the token (`204`), so it stops working at once.
 
 ### Frontend (React + Vite)
 In a second terminal:
@@ -150,7 +159,10 @@ Pages (React Router):
 |---|---|
 | `/` | Home, with the API status |
 | `/register` | Registration form (calls `POST /api/auth/register/`, then goes to `/login`) |
-| `/login` | Placeholder until WFH-07 |
+| `/login` | Login form (calls `POST /api/auth/login/`, then goes to `/workflows`) |
+| `/workflows` | Protected page: greets the user from `GET /api/auth/me/` and shows an empty-state message. Redirects to `/login` without a token |
+
+The header shows Login and Register links for anonymous users and a **Log out** button when logged in. The token is kept in `localStorage` (key `workflowhub.token`) and sent with every API request. A `401` response clears it.
 
 Check the code with `npm run lint` and `npm run build`.
 
