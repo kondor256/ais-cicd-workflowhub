@@ -240,12 +240,12 @@ Use `vMAJOR.MINOR.PATCH`. A tag with a suffix, such as `v1.1.0-rc.1`, is treated
 
 ### Where the images are
 
-| Image | Tags |
-|---|---|
-| `ghcr.io/<owner>/workflowhub-backend` | `1.0.0` (the tag without the `v`), `latest` |
-| `ghcr.io/<owner>/workflowhub-frontend` | `1.0.0`, `latest` |
+| Image | Package page | Tags |
+|---|---|---|
+| `ghcr.io/kondor256/workflowhub-backend` | [workflowhub-backend](https://github.com/users/kondor256/packages/container/package/workflowhub-backend) | `1.0.0` (the tag without the `v`), `latest` |
+| `ghcr.io/kondor256/workflowhub-frontend` | [workflowhub-frontend](https://github.com/users/kondor256/packages/container/package/workflowhub-frontend) | `1.0.0`, `latest` |
 
-`<owner>` is the GitHub user or organisation in lower case. `latest` is moved only by stable tags, never by pre-releases. After the first push, the packages appear under the repository's **Packages** section. They are private by default; change the visibility in the package settings if others must pull them without logging in.
+All packages of the repository are also listed at [github.com/kondor256?tab=packages&repo_name=ais-cicd-workflowhub](https://github.com/kondor256?tab=packages&repo_name=ais-cicd-workflowhub). `latest` is moved only by stable tags, never by pre-releases. The packages are private by default; change the visibility in the package settings if others must pull them without logging in.
 
 ### How to run a released version
 
@@ -255,9 +255,9 @@ The backend still needs the environment variables from the configuration table, 
 # docker-compose.release.yml
 services:
   backend:
-    image: ghcr.io/<owner>/workflowhub-backend:1.0.0
+    image: ghcr.io/kondor256/workflowhub-backend:1.0.0
   frontend:
-    image: ghcr.io/<owner>/workflowhub-frontend:1.0.0
+    image: ghcr.io/kondor256/workflowhub-frontend:1.0.0
 ```
 
 ```bash
