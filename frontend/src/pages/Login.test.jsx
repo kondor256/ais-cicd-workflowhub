@@ -45,7 +45,8 @@ describe('Login', () => {
     expect(await screen.findByText('Workflows page')).toBeInTheDocument()
     expect(localStorage.getItem('workflowhub.token')).toBe('abc123')
     const [url, options] = fetchMock.mock.calls[0]
-    expect(url).toBe('/api/auth/login/')
+    // Only the path is checked: CI may set VITE_API_URL, which adds a host in front of it.
+    expect(new URL(url, 'http://localhost').pathname).toBe('/api/auth/login/')
     expect(options.method).toBe('POST')
     expect(JSON.parse(options.body)).toEqual({ username: 'alice', password: 'secret-pass' })
   })
