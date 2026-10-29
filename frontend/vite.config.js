@@ -10,4 +10,9 @@ export default defineConfig({
       '/api': 'http://127.0.0.1:8000',
     },
   },
+  // Vitest runs the components in jsdom, a browser-like environment, so no real browser is needed.
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+  },
 })
