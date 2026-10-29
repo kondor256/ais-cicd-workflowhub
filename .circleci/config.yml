@@ -1,6 +1,31 @@
 version: 2.1
 
 jobs:
+  test-frontend:
+    docker:
+      # Vitest 5 needs Node 22 or newer
+      - image: cimg/node:22.23
+    working_directory: ~/project/frontend
+    steps:
+      - checkout:
+          path: ~/project
+      - restore_cache:
+          keys:
+            - npm-v1-{{ checksum "package-lock.json" }}
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - save_cache:
+          key: npm-v1-{{ checksum "package-lock.json" }}
+          paths:
+            - ~/.npm
+      - run:
+          name: Run frontend tests
+          # The JUnit report fills the Tests tab of the CircleCI job page
+          command: npx vitest run --reporter=default --reporter=junit --outputFile=test-results/junit.xml
+      - store_test_results:
+          path: test-results
+
   build-images:
     docker:
       - image: cimg/base:stable
@@ -21,4 +46,7 @@ workflows:
   ci:
     # No branch filter: runs on every branch
     jobs:
-      - build-images
+      - test-frontend
+      - build-images:
+          requires:
+            - test-frontend

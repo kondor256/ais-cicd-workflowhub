@@ -40,8 +40,32 @@ jobs:
           # A plain value, not a secret: tests use a throwaway SQLite file
           DATABASE_URL: sqlite:///db.sqlite3
 
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          # Vitest 5 needs Node 22 or newer
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        # The tests replace fetch, so no backend or secrets are needed
+        run: npm test
+
   build-images:
-    needs: test-backend
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code

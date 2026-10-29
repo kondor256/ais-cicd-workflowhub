@@ -1,6 +1,7 @@
 # Keep secrets, local build output and caches out of the image
 node_modules
 dist
+test-results
 .env
 .env.*
 !.env.example
