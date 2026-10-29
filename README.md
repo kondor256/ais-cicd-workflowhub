@@ -95,7 +95,7 @@ Use the imperative mood ("add", not "added"), keep the first line under about 72
 ### Pull requests and `main`
 
 - `main` is protected: no direct pushes and no force pushes. Every change goes through a pull request with 1 approving review.
-- From WFH-08, the CI checks (`test-backend`, `build-images`) must also pass before merging.
+- From WFH-08, the CI checks (`test-backend`, `build-images`) must also pass before merging. From WFH-29, `test-frontend` is required too.
 - The PR title matches the issue title, for example `WFH-01: Repository, branching strategy and PR review workflow`.
 
 ### Labels
@@ -106,7 +106,7 @@ Use the imperative mood ("add", not "added"), keep the first line under about 72
 
 ### Prerequisites
 - Python 3.12+
-- Node.js 20+ and npm
+- Node.js 22+ and npm (the frontend tests need Node 22; the app itself builds on Node 20.19+)
 
 ### Backend (Django REST Framework)
 ```bash
@@ -173,6 +173,13 @@ The header shows Login and Register links for anonymous users and a **Log out** 
 
 Check the code with `npm run lint` and `npm run build`.
 
+Run the tests:
+```bash
+npm test                        # runs once, as in CI
+npm run test:watch              # re-runs the tests when a file changes
+```
+The tests use Vitest and React Testing Library in jsdom (a browser-like environment), so no browser and no backend are needed. They sit next to the code as `*.test.jsx` files and cover the status badge, the workflow list (status change, delete with confirmation), the protected route redirect and the login page (success, wrong password, server error). The login tests replace `fetch` with a stub, so the real API client and `AuthProvider` run without a server.
+
 ## Run with Docker
 
 ### Prerequisites
@@ -202,18 +209,19 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 ## Continuous integration (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has two jobs:
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has three jobs:
 
 1. `test-backend` sets up Python 3.12 (with the pip cache), installs `backend/requirements.txt` and runs `python manage.py test` in the `backend/` folder. It uses `DATABASE_URL=sqlite:///db.sqlite3`, a plain value written in the YAML, so the tests need no database service.
-2. `build-images` runs only if `test-backend` passes (`needs: test-backend`). It builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+2. `test-frontend` runs at the same time as `test-backend`. It sets up Node 22 (with the npm cache), runs `npm ci` and `npm test` in the `frontend/` folder. It needs no secrets.
+3. `build-images` runs only if both test jobs pass (`needs: [test-backend, test-frontend]`). It builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
 
-The tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
+The backend tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
 The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
 
 ## Continuous integration (CircleCI)
 
-`.circleci/config.yml` builds the same two Docker images as the GitHub Actions workflow, also without pushing them. The `build-images` job runs on every branch (workflow `ci`). It uses the `cimg/base:stable` executor and `setup_remote_docker`, because Docker builds run on a separate remote Docker engine. There is no layer cache in this pipeline.
+`.circleci/config.yml` runs the frontend tests and builds the same two Docker images as the GitHub Actions workflow, also without pushing them. Both jobs run on every branch (workflow `ci`). `test-frontend` uses the `cimg/node:22.23` image, caches `~/.npm` by the `package-lock.json` checksum and saves a JUnit report, so the results appear in the **Tests** tab of the job. `build-images` runs only if `test-frontend` passes (`requires`); it uses the `cimg/base:stable` executor and `setup_remote_docker`, because Docker builds run on a separate remote Docker engine. There is no layer cache in this pipeline.
 
 To use it:
 
