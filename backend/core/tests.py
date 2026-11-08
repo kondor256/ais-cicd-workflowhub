@@ -11,7 +11,19 @@ class HealthCheckTests(APITestCase):
     def test_health_returns_ok(self):
         response = self.client.get('/api/health/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {'status': 'ok'})
+        self.assertEqual(response.json()['status'], 'ok')
+
+    @override_settings(APP_VERSION='abc1234')
+    def test_health_returns_build_version(self):
+        response = self.client.get('/api/health/')
+        self.assertEqual(response.json(), {'status': 'ok', 'version': 'abc1234'})
+
+    def test_health_version_defaults_to_unknown(self):
+        # Without the GIT_SHA build argument (local runs, tests) the version is "unknown"
+        if 'GIT_SHA' in os.environ:
+            self.skipTest('GIT_SHA is set in this environment')
+        response = self.client.get('/api/health/')
+        self.assertEqual(response.json()['version'], 'unknown')
 
     def test_health_rejects_post(self):
         response = self.client.post('/api/health/')
