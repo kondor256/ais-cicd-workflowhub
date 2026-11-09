@@ -1,10 +1,9 @@
 name: Deploy to Azure
 
 # Toolchain A: every push to main is built, pushed to GHCR and deployed to Azure Container Apps.
-# The branch ci/38-deploy-azure is listed only while WFH-18 is being tested; it is removed before merge.
 on:
   push:
-    branches: [main, ci/38-deploy-azure]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
