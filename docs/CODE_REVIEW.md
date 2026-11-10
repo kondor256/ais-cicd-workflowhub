@@ -9,9 +9,11 @@
 
 This guide defines a consistent code review process for WorkFlowHub. Our goal is to catch defects, protect user data, improve maintainability, and share knowledge before changes are merged.
 
-The Assignment 1 review baseline reported 17 approvals without written review feedback. For Release 1.1, we will improve review quality by using a documented checklist, actionable comments, and automated CI checks.
 
-The baseline figures should be confirmed against the repository's Assignment 1 pull requests before being included in the final report.
+Before the `a1-submitted` tag, Assignment 1 had 17 merged pull requests, 16 approvals, 15 of which had an empty review body, and 3 inline review comments. These figures were counted from the repository's merged pull requests.
+
+This baseline shows that although the team used pull request approvals, most approvals did not include written feedback. For Release 1.1, we aim to improve the review process through a documented checklist, actionable review comments, and automated CI checks.
+
 
 ## 2. Review Strategy
 
