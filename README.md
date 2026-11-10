@@ -328,7 +328,7 @@ The GitHub Actions CI workflow includes a job named `lint`, which runs:
 - `ruff check --output-format=github .` for the Django backend
 - `npm run lint` for the React frontend
 
-The team intends to configure `lint` as a required status check so that pull requests with lint errors cannot be merged.
+The `lint` job is configured as a required status check in the repository ruleset. Pull requests with failing lint checks cannot be merged into `main`.
 
 ### Pull Request Review Process
 
