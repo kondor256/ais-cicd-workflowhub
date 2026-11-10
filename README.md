@@ -55,6 +55,10 @@ Work is planned with GitHub Issues, Milestones (sprints) and a Projects board: *
 5. Another team member reviews. At least **1 approval** is required before merging.
 6. Merge, delete the branch, and the issue closes automatically.
 
+
+**Release 1.1 exception:** The first WFH-17 pull request uses `Refs #37` because the issue remains open until the checklist v1.1 follow-up PR is merged. The follow-up PR uses `Closes #37`.
+
+
 ### Branch naming
 
 `<type>/<issue-number>-<short-slug>`, lowercase, words separated by hyphens.
@@ -209,11 +213,19 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 ## Continuous integration (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has three jobs:
 
-1. `test-backend` sets up Python 3.12 (with the pip cache), installs `backend/requirements.txt` and runs `python manage.py test` in the `backend/` folder. It uses `DATABASE_URL=sqlite:///db.sqlite3`, a plain value written in the YAML, so the tests need no database service.
-2. `test-frontend` runs at the same time as `test-backend`. It sets up Node 22 (with the npm cache), runs `npm ci` and `npm test` in the `frontend/` folder. It needs no secrets.
-3. `build-images` runs only if both test jobs pass (`needs: [test-backend, test-frontend]`). It builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has four jobs:
+
+1. `lint` runs Ruff on the Django backend and oxlint on the React frontend. It uses Python 3.12 and Node.js 22, installs the required dependencies, and reports code-quality issues automatically.
+
+2. `test-backend` sets up Python 3.12, installs `backend/requirements.txt`, and runs `python manage.py test` using a temporary SQLite database.
+
+3. `test-frontend` runs in parallel with the backend tests. It sets up Node.js 22, installs dependencies using `npm ci`, and runs `npm test`.
+
+4. `build-images` runs only after both `test-backend` and `test-frontend` succeed. It builds the backend and frontend Docker images without pushing them to a registry.
+
+The `lint` job runs independently of the test jobs. The team will configure `lint` as a required status check so that lint failures block pull request merges.
+
 
 The backend tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
@@ -275,6 +287,55 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml up --no-build
 ```
 
 Because `VITE_API_URL` is baked into the frontend bundle at build time, the published frontend image calls the API address that was set when the release was built.
+
+
+## Code Review and Linting
+
+WorkFlowHub Release 1.1 uses checklist-guided pull request reviews and automated code-quality checks.
+
+For the review strategy, reviewer responsibilities, comment labels, and the 16-item checklist, see [Code Review Guide](docs/CODE_REVIEW.md).
+
+### Backend linting (Ruff)
+
+Install the development dependency:
+
+```bash
+cd backend
+python -m pip install -r requirements-dev.txt
+```
+
+Run Ruff:
+
+```bash
+ruff check .
+```
+
+Ruff checks Python code using the rules configured in `backend/pyproject.toml`.
+
+### Frontend linting (oxlint)
+
+From the `frontend` directory:
+
+```bash
+npm ci
+npm run lint
+```
+
+### Automated linting in GitHub Actions
+
+The GitHub Actions CI workflow includes a job named `lint`, which runs:
+
+- `ruff check --output-format=github .` for the Django backend
+- `npm run lint` for the React frontend
+
+The `lint` job is configured as a required status check in the repository ruleset. Pull requests with failing lint checks cannot be merged into `main`.
+
+### Pull Request Review Process
+
+Developers work on feature branches and open pull requests against `main`. Pull requests must include the linked issue, testing information, deployment impact, and author self-check.
+
+Reviewers follow `docs/CODE_REVIEW.md`, provide actionable feedback with checklist IDs, and verify that applicable CI checks pass before approving.
+
 
 ## Licence
 
