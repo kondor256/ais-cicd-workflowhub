@@ -42,6 +42,8 @@ jobs:
           command: python manage.py test
 
   build-images:
+    environment:
+      VITE_API_URL: "https://workflowhub-backend-v1jm.onrender.com"
     docker:
       - image: cimg/base:stable
     steps:
@@ -53,6 +55,50 @@ jobs:
       - run:
           name: Build frontend image
           command: docker build --build-arg VITE_API_URL="$VITE_API_URL" -t workflowhub-frontend:ci ./frontend
+  publish-render-images:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Login to GitHub Container Registry
+          command: |
+            echo "$GHCR_TOKEN" | docker login ghcr.io \
+              -u "$GHCR_USER" --password-stdin
+      
+      - run:
+          name: Build and push backend image
+          command: |
+            docker build \
+              -t ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1} \
+              ./backend
+            docker push ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1}
+      - run:
+          name: Build and push frontend image
+          command: |
+            docker build \
+              --build-arg VITE_API_URL="$VITE_API_URL" \
+              -t ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1} \
+              ./frontend
+            docker push ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}
+  deploy-render:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: Deploy backend to Render
+          command: |
+            curl --fail --silent --show-error --get -X POST \
+              --data-urlencode "imgURL=ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1}" \
+              "$BACKEND_DEPLOY_HOOK"
+
+      - run:
+          name: Deploy frontend to Render
+          command: |
+            curl --fail --silent --show-error --get -X POST \
+              --data-urlencode "imgURL=ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}" \
+              "$FRONTEND_DEPLOY_HOOK"
 
 workflows:
   ci:
@@ -63,3 +109,19 @@ workflows:
           requires:
             - test-frontend
             - test-backend
+      - publish-render-images:
+          requires:
+            - build-images
+          context:
+            - ghcr-push
+          filters:
+            branches:
+              only: main
+      - deploy-render:
+          requires:
+            - publish-render-images
+          context:
+            - render-deploy
+          filters:
+            branches:
+              only: main
