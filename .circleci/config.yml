@@ -56,6 +56,8 @@ jobs:
           name: Build frontend image
           command: docker build --build-arg VITE_API_URL="$VITE_API_URL" -t workflowhub-frontend:ci ./frontend
   publish-render-images:
+    environment:
+      VITE_API_URL: "https://workflowhub-backend-v1jm.onrender.com"
     docker:
       - image: cimg/base:stable
     steps:
@@ -101,7 +103,7 @@ jobs:
             HEALTH_URL="https://workflowhub-backend-v1jm.onrender.com/api/health/"
 
             for attempt in $(seq 1 20); do
-              RESPONSE=$(curl --fail --silent --show-error "$HEALTH_URL" || true)
+              RESPONSE=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 "$HEALTH_URL" || true)
               echo "Attempt $attempt: $RESPONSE"
 
               if echo "$RESPONSE" | grep -Eq "\"git_sha\"[[:space:]]*:[[:space:]]*\"${EXPECTED_SHA}\""; then
@@ -128,8 +130,8 @@ jobs:
             FRONTEND_URL="https://workflowhub-frontend.onrender.com"
 
             for attempt in $(seq 1 20); do
-              if curl --fail --silent --show-error -o /dev/null "$FRONTEND_URL"; then
-                echo "Frontend deployment verified"
+              if curl --fail --silent --show-error --connect-timeout 10 --max-time 30 -o /dev/null "$FRONTEND_URL"; then
+                echo "Frontend is reachable"
                 exit 0
               fi
 
