@@ -1,0 +1,6 @@
+# Playwright dependencies
+node_modules/
+
+# Generated Playwright reports
+playwright-report/
+test-results/

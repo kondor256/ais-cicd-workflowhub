@@ -16,6 +16,7 @@ workflowhub/
 ├── frontend/       React + Vite, Dockerfile (multi-stage, nginx), .env.example
 ├── docker-compose.yml   backend + frontend + postgres
 ├── .env.example    variables for docker-compose.yml
+├── e2e/            Playwright configuration, browser tests and package files
 └── README.md
 ```
 
@@ -214,7 +215,7 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 ## Continuous integration (GitHub Actions)
 
 
-`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has four jobs:
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has five jobs:
 
 1. `lint` runs Ruff on the Django backend and oxlint on the React frontend. It uses Python 3.12 and Node.js 22, installs the required dependencies, and reports code-quality issues automatically.
 
@@ -227,9 +228,116 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 The `lint` job runs independently of the test jobs. The team will configure `lint` as a required status check so that lint failures block pull request merges.
 
 
+5. `e2e` runs Playwright end-to-end tests in Chromium. It starts the complete application (Django, React and PostgreSQL) using `docker compose up -d --build --wait`, verifies backend and frontend availability, and runs the authentication, workflow lifecycle and ownership security tests. The job uploads Playwright HTML reports and test artifacts to GitHub Actions.
+
+
 The backend tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
 The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
+
+
+## Running end-to-end tests (Playwright)
+
+WorkFlowHub uses Playwright to test the application in a real Chromium browser against the full Docker stack.
+
+### Test scenarios
+
+Three end-to-end tests are implemented in `e2e/tests/`:
+
+1. **Authentication (`auth.spec.ts`):** Register a new user, log in, log out, and log back in.
+2. **Workflow lifecycle (`workflow.spec.ts`):** Create an item, verify Pending status, change it to In Progress and Completed, edit it, and delete it.
+3. **Ownership security (`ownership.spec.ts`):** Verify that user B cannot see user A's workflow item in the UI or workflow-list API response.
+
+Tests create uniquely named users and workflow items. The workflow and ownership tests include item cleanup.
+
+### Prerequisites
+
+- Node.js 22 or newer
+- npm
+- Docker Desktop with Docker Compose
+- Chromium (installed through Playwright)
+
+### Run locally
+
+From the repository root, ensure the Docker Compose environment variables are configured in `.env`.
+
+Start the application:
+
+```bash
+docker compose up -d --build --wait
+```
+
+The application is available at:
+
+- Frontend: http://localhost:8080
+- Backend health: http://localhost:8000/api/health/
+
+Open another terminal:
+
+```bash
+cd e2e
+npm ci
+npx playwright install chromium
+npx playwright test
+```
+
+To watch the tests run in Chromium:
+
+```bash
+npx playwright test --headed
+```
+
+To run a single test:
+
+```bash
+npx playwright test tests/auth.spec.ts
+```
+
+### View the HTML report
+
+After executing the tests:
+
+```bash
+npx playwright show-report
+```
+
+The HTML report displays the test results, execution steps and available debugging information.
+
+### Configuration
+
+The Playwright configuration is located at `e2e/playwright.config.ts`.
+
+By default, tests run against:
+
+`http://localhost:8080`
+
+The `E2E_BASE_URL` environment variable can override the frontend URL for testing another environment.
+
+Configuration includes:
+
+- Chromium browser
+- 60-second test timeout
+- One retry in CI
+- Trace capture on the first retry
+- HTML and JUnit reports
+
+### GitHub Actions
+
+The `e2e` job in `.github/workflows/ci.yml` automatically runs on pushes and pull requests to `main`.
+
+The job:
+
+1. Sets up Node.js 22.
+2. Installs Playwright and Chromium.
+3. Starts the complete Docker stack.
+4. Checks backend and frontend availability.
+5. Executes the three end-to-end tests.
+6. Uploads Playwright reports and available traces as workflow artifacts.
+
+Reports are available from the relevant GitHub Actions workflow run under **Artifacts**.
+
+The `e2e` check will be configured as a required pull request check by the repository administrator.
+
 
 ## Continuous integration (CircleCI)
 
