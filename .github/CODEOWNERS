@@ -1,0 +1,16 @@
+
+# WorkFlowHub — Release 1.1 Code Owners
+# GitHub automatically requests reviewers based on changed files.
+
+# GitHub configuration and automation — Yury
+/.github/               @kondor256
+
+# CircleCI pipeline — Samjhana
+/.circleci/              @Samjhana72600
+
+# Documentation — Rahul
+/docs/                   @2ndjoy
+
+# Application code — Rahul and Samjhana
+/backend/                @2ndjoy @Samjhana72600
+/frontend/               @2ndjoy @Samjhana72600

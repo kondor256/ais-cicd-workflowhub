@@ -1,6 +1,5 @@
 
-import os
-
+from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -11,5 +10,6 @@ from rest_framework.response import Response
 def health(request):
     return Response({
         'status': 'ok',
-        'git_sha': os.environ.get('GIT_SHA', 'unknown'),
+        'git_sha': settings.APP_VERSION,
+        'version': settings.APP_VERSION,
     })

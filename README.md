@@ -10,7 +10,7 @@ Built for SOFT806 Continuous Integration and Continuous Deployment (Assignment 1
 
 ```
 workflowhub/
-├── .github/        issue forms, pull request template, workflows/ci.yml
+├── .github/        issue forms, pull request template, workflows/ (ci.yml, release.yml, deploy-azure.yml)
 ├── .circleci/      config.yml
 ├── backend/        Django + DRF (accounts/, workflows/), Dockerfile, .env.example
 ├── frontend/       React + Vite, Dockerfile (multi-stage, nginx), .env.example
@@ -54,6 +54,10 @@ Work is planned with GitHub Issues, Milestones (sprints) and a Projects board: *
 4. Push and open a pull request into `main` using the PR template. Put `Closes #<issue>` in the description.
 5. Another team member reviews. At least **1 approval** is required before merging.
 6. Merge, delete the branch, and the issue closes automatically.
+
+
+**Release 1.1 exception:** The first WFH-17 pull request uses `Refs #37` because the issue remains open until the checklist v1.1 follow-up PR is merged. The follow-up PR uses `Closes #37`.
+
 
 ### Branch naming
 
@@ -209,11 +213,19 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 ## Continuous integration (GitHub Actions)
 
-`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has three jobs:
 
-1. `test-backend` sets up Python 3.12 (with the pip cache), installs `backend/requirements.txt` and runs `python manage.py test` in the `backend/` folder. It uses `DATABASE_URL=sqlite:///db.sqlite3`, a plain value written in the YAML, so the tests need no database service.
-2. `test-frontend` runs at the same time as `test-backend`. It sets up Node 22 (with the npm cache), runs `npm ci` and `npm test` in the `frontend/` folder. It needs no secrets.
-3. `build-images` runs only if both test jobs pass (`needs: [test-backend, test-frontend]`). It builds the backend and frontend Docker images (nothing is pushed) and uses the GitHub Actions cache for Docker layers. A Dockerfile error makes the run fail and the PR show a red check.
+`.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has four jobs:
+
+1. `lint` runs Ruff on the Django backend and oxlint on the React frontend. It uses Python 3.12 and Node.js 22, installs the required dependencies, and reports code-quality issues automatically.
+
+2. `test-backend` sets up Python 3.12, installs `backend/requirements.txt`, and runs `python manage.py test` using a temporary SQLite database.
+
+3. `test-frontend` runs in parallel with the backend tests. It sets up Node.js 22, installs dependencies using `npm ci`, and runs `npm test`.
+
+4. `build-images` runs only after both `test-backend` and `test-frontend` succeed. It builds the backend and frontend Docker images without pushing them to a registry.
+
+The `lint` job runs independently of the test jobs. The team will configure `lint` as a required status check so that lint failures block pull request merges.
+
 
 The backend tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
@@ -299,6 +311,34 @@ To use the CircleCI deployment workflow:
 
 The `publish-render-images` job uses the `ghcr-push` context. The `deploy-render` job uses the `render-deploy` context.
 
+## Continuous deployment to Azure (GitHub Actions)
+
+`.github/workflows/deploy-azure.yml` deploys every push to `main` to **Azure Container Apps** (toolchain A). The live app:
+
+| | URL |
+|---|---|
+| Frontend | https://ca-wfh-frontend.redwater-4b97b0c9.australiaeast.azurecontainerapps.io |
+| Backend health | https://ca-wfh-backend.redwater-4b97b0c9.australiaeast.azurecontainerapps.io/api/health/ |
+
+The job runs in the GitHub Environment `azure-production` and does the following:
+
+1. Builds both images and pushes them to GHCR with the built-in `GITHUB_TOKEN`. The backend is tagged with the commit SHA. The frontend is tagged `azure-<sha>`, because it is built with the Azure backend URL (`VITE_API_URL`).
+2. Logs in to Azure with **OpenID Connect**: GitHub issues a short-lived token, and Azure accepts it through a federated credential on the managed identity `id-workflowhub-gha`. **No Azure password or key is stored in GitHub.** The identity has the Contributor role on the resource group `rg-workflowhub-a2` only.
+3. Deploys the backend image (`azure/container-apps-deploy-action`). The container runs `migrate` before `gunicorn`, so new migrations are applied on start.
+4. **Smoke test:** waits until `/api/health/` returns the new commit SHA as `version` (the image gets it from the `GIT_SHA` build argument), so a 200 from the old revision does not count.
+5. Deploys the frontend image and checks that it answers 200. The job summary lists the images and URLs, and the run appears under **Deployments** on the repository page.
+
+The environment `azure-production` holds four **variables** (not secrets): `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `VITE_API_URL`. Only `main` may deploy to it. The backend's own settings (`DJANGO_SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `DEBUG`) live in the container app; the first two are Container Apps secrets.
+
+Both apps scale to zero when idle, so the first request after a quiet period waits for a cold start.
+
+**Roll back:** run the deploy by hand for an older commit, or point the app to an older image:
+
+```bash
+az containerapp update -g rg-workflowhub-a2 -n ca-wfh-backend \
+  --image ghcr.io/kondor256/workflowhub-backend:<older-sha>
+```
+
 ## Releases
 
 `.github/workflows/release.yml` runs when a tag starting with `v` is pushed. It builds the backend and frontend images and pushes them to the GitHub Container Registry (ghcr.io). It logs in with the built-in `GITHUB_TOKEN`, so no extra secret is needed. The frontend build reads the repository variable `VITE_API_URL`, as in CI.
@@ -345,6 +385,55 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml up --no-build
 ```
 
 Because `VITE_API_URL` is baked into the frontend bundle at build time, the published frontend image calls the API address that was set when the release was built.
+
+
+## Code Review and Linting
+
+WorkFlowHub Release 1.1 uses checklist-guided pull request reviews and automated code-quality checks.
+
+For the review strategy, reviewer responsibilities, comment labels, and the 16-item checklist, see [Code Review Guide](docs/CODE_REVIEW.md).
+
+### Backend linting (Ruff)
+
+Install the development dependency:
+
+```bash
+cd backend
+python -m pip install -r requirements-dev.txt
+```
+
+Run Ruff:
+
+```bash
+ruff check .
+```
+
+Ruff checks Python code using the rules configured in `backend/pyproject.toml`.
+
+### Frontend linting (oxlint)
+
+From the `frontend` directory:
+
+```bash
+npm ci
+npm run lint
+```
+
+### Automated linting in GitHub Actions
+
+The GitHub Actions CI workflow includes a job named `lint`, which runs:
+
+- `ruff check --output-format=github .` for the Django backend
+- `npm run lint` for the React frontend
+
+The `lint` job is configured as a required status check in the repository ruleset. Pull requests with failing lint checks cannot be merged into `main`.
+
+### Pull Request Review Process
+
+Developers work on feature branches and open pull requests against `main`. Pull requests must include the linked issue, testing information, deployment impact, and author self-check.
+
+Reviewers follow `docs/CODE_REVIEW.md`, provide actionable feedback with checklist IDs, and verify that applicable CI checks pass before approving.
+
 
 ## Licence
 
