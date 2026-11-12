@@ -40,6 +40,10 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 # Origins (frontend URLs) the browser may call the API from, comma-separated.
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 
+# Commit the running image was built from. The Dockerfile sets it from the GIT_SHA
+# build argument, so a deploy pipeline can check that the new version is live.
+APP_VERSION = env('GIT_SHA', default='unknown')
+
 
 # Application definition
 

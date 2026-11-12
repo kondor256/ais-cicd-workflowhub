@@ -10,7 +10,7 @@ Built for SOFT806 Continuous Integration and Continuous Deployment (Assignment 1
 
 ```
 workflowhub/
-├── .github/        issue forms, pull request template, workflows/ci.yml
+├── .github/        issue forms, pull request template, workflows/ (ci.yml, release.yml, deploy-azure.yml)
 ├── .circleci/      config.yml
 ├── backend/        Django + DRF (accounts/, workflows/), Dockerfile, .env.example
 ├── frontend/       React + Vite, Dockerfile (multi-stage, nginx), .env.example
@@ -240,6 +240,34 @@ To use it:
 1. In CircleCI, set up the GitHub repository as a project.
 2. Add `VITE_API_URL` under Project Settings → Environment Variables. The frontend build reads it as `$VITE_API_URL`; it is not in the YAML. Without it the frontend is built with an empty API URL.
 3. Push a branch. The run appears in CircleCI, and the status is also shown on the commit or PR in GitHub.
+
+## Continuous deployment to Azure (GitHub Actions)
+
+`.github/workflows/deploy-azure.yml` deploys every push to `main` to **Azure Container Apps** (toolchain A). The live app:
+
+| | URL |
+|---|---|
+| Frontend | https://ca-wfh-frontend.redwater-4b97b0c9.australiaeast.azurecontainerapps.io |
+| Backend health | https://ca-wfh-backend.redwater-4b97b0c9.australiaeast.azurecontainerapps.io/api/health/ |
+
+The job runs in the GitHub Environment `azure-production` and does the following:
+
+1. Builds both images and pushes them to GHCR with the built-in `GITHUB_TOKEN`. The backend is tagged with the commit SHA. The frontend is tagged `azure-<sha>`, because it is built with the Azure backend URL (`VITE_API_URL`).
+2. Logs in to Azure with **OpenID Connect**: GitHub issues a short-lived token, and Azure accepts it through a federated credential on the managed identity `id-workflowhub-gha`. **No Azure password or key is stored in GitHub.** The identity has the Contributor role on the resource group `rg-workflowhub-a2` only.
+3. Deploys the backend image (`azure/container-apps-deploy-action`). The container runs `migrate` before `gunicorn`, so new migrations are applied on start.
+4. **Smoke test:** waits until `/api/health/` returns the new commit SHA as `version` (the image gets it from the `GIT_SHA` build argument), so a 200 from the old revision does not count.
+5. Deploys the frontend image and checks that it answers 200. The job summary lists the images and URLs, and the run appears under **Deployments** on the repository page.
+
+The environment `azure-production` holds four **variables** (not secrets): `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `VITE_API_URL`. Only `main` may deploy to it. The backend's own settings (`DJANGO_SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `DEBUG`) live in the container app; the first two are Container Apps secrets.
+
+Both apps scale to zero when idle, so the first request after a quiet period waits for a cold start.
+
+**Roll back:** run the deploy by hand for an older commit, or point the app to an older image:
+
+```bash
+az containerapp update -g rg-workflowhub-a2 -n ca-wfh-backend \
+  --image ghcr.io/kondor256/workflowhub-backend:<older-sha>
+```
 
 ## Releases
 
