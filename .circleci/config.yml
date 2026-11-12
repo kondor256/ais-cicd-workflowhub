@@ -71,6 +71,7 @@ jobs:
           name: Build and push backend image
           command: |
             docker build \
+              --build-arg GIT_SHA="${CIRCLE_SHA1}" \
               -t ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1} \
               ./backend
             docker push ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1}
@@ -94,11 +95,50 @@ jobs:
               "$BACKEND_DEPLOY_HOOK"
 
       - run:
+          name: Verify backend deployment
+          command: |
+            EXPECTED_SHA="${CIRCLE_SHA1}"
+            HEALTH_URL="https://workflowhub-backend-v1jm.onrender.com/api/health/"
+
+            for attempt in $(seq 1 20); do
+              RESPONSE=$(curl --fail --silent --show-error "$HEALTH_URL" || true)
+              echo "Attempt $attempt: $RESPONSE"
+
+              if echo "$RESPONSE" | grep -Eq "\"git_sha\"[[:space:]]*:[[:space:]]*\"${EXPECTED_SHA}\""; then
+                echo "Backend deployment verified: ${EXPECTED_SHA}"
+                exit 0
+              fi
+
+              sleep 15
+            done
+
+            echo "Backend deployment did not report expected SHA: ${EXPECTED_SHA}"
+            exit 1
+
+
+      - run:
           name: Deploy frontend to Render
           command: |
             curl --fail --silent --show-error --get -X POST \
               --data-urlencode "imgURL=ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}" \
               "$FRONTEND_DEPLOY_HOOK"
+      - run:
+          name: Verify frontend deployment
+          command: |
+            FRONTEND_URL="https://workflowhub-frontend.onrender.com"
+
+            for attempt in $(seq 1 20); do
+              if curl --fail --silent --show-error -o /dev/null "$FRONTEND_URL"; then
+                echo "Frontend deployment verified"
+                exit 0
+              fi
+
+              echo "Frontend not ready yet. Attempt $attempt"
+              sleep 15
+            done
+
+            echo "Frontend deployment verification failed"
+            exit 1
 
 workflows:
   ci:
