@@ -158,7 +158,7 @@ workflows:
             - ghcr-push
           filters:
             branches:
-              only: /^(main|ci\/39-deploy-render-circleci)$/
+              only: main
       - deploy-render:
           requires:
             - publish-render-images

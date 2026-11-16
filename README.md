@@ -246,7 +246,7 @@ The `ci` workflow runs the following jobs:
 - `publish-render-images`: Builds and pushes versioned Docker images to GitHub Container Registry (GHCR).
 - `deploy-render`: Deploys the backend and frontend images to Render and verifies their availability.
 
-The `publish-render-images` job runs on the `main` branch and the `ci/39-deploy-render-circleci` branch. The `deploy-render` job runs only on `main`.
+The `publish-render-images` job runs only on the `main` branch. The `deploy-render` job also runs only on `main`. Feature branches can run the CI tests and build Docker images, but they do not publish images to GHCR or deploy to Render.
 
 ### Required CircleCI contexts and environment variables
 
