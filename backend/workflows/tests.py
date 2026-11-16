@@ -29,7 +29,7 @@ class WorkflowItemTests(APITestCase):
     def test_new_item_appears_first_in_list(self):
         self.client.post(self.url, {'title': 'First'})
         self.client.post(self.url, {'title': 'Second'})
-        titles = [item['title'] for item in self.client.get(self.url).json()]
+        titles = [item['title'] for item in self.client.get(self.url).json()['results']]
         self.assertEqual(titles, ['Second', 'First'])
 
     def test_empty_title_rejected(self):
@@ -49,7 +49,8 @@ class WorkflowItemTests(APITestCase):
         WorkflowItem.objects.create(title='Theirs', owner=self.bob)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([item['id'] for item in response.json()], [mine.id])
+        self.assertEqual([item['id'] for item in response.json()['results']], [mine.id])
+        self.assertEqual(response.json()['count'], 1)
 
     def test_other_users_item_is_404(self):
         item = WorkflowItem.objects.create(title='Alice only', owner=self.alice)
@@ -67,6 +68,54 @@ class WorkflowItemTests(APITestCase):
         self.assertEqual(self.client.get(self.url).status_code, 401)
         self.assertEqual(self.client.post(self.url, {'title': 'x'}).status_code, 401)
         self.assertFalse(WorkflowItem.objects.exists())
+
+
+class WorkflowItemPaginationTests(APITestCase):
+    url = '/api/workflows/items/'
+
+    def setUp(self):
+        self.alice = User.objects.create_user('alice', 'alice@example.com', 'Tr1cky-horse-staple')
+        self.bob = User.objects.create_user('bob', 'bob@example.com', 'Tr1cky-horse-staple')
+        WorkflowItem.objects.bulk_create(
+            WorkflowItem(title=f'Item {n}', owner=self.alice) for n in range(1, 26))
+        self.client.force_authenticate(self.alice)
+
+    def test_first_page_has_20_items_count_and_next(self):
+        body = self.client.get(self.url).json()
+        self.assertEqual(body['count'], 25)
+        self.assertEqual(len(body['results']), 20)
+        self.assertIn('page=2', body['next'])
+        self.assertIsNone(body['previous'])
+
+    def test_second_page_has_the_rest_and_no_next(self):
+        response = self.client.get(self.url, {'page': 2})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(len(body['results']), 5)
+        self.assertIsNone(body['next'])
+        self.assertIsNotNone(body['previous'])
+
+    def test_pages_do_not_overlap_when_timestamps_are_equal(self):
+        # All items get the same created_at, so only the -id tie-breaker keeps the order stable.
+        WorkflowItem.objects.update(created_at=WorkflowItem.objects.first().created_at)
+        first = self.client.get(self.url).json()['results']
+        second = self.client.get(self.url, {'page': 2}).json()['results']
+        ids = [item['id'] for item in first + second]
+        self.assertEqual(len(set(ids)), 25)
+        self.assertEqual(ids, sorted(ids, reverse=True))
+
+    def test_page_out_of_range_is_404(self):
+        self.assertEqual(self.client.get(self.url, {'page': 3}).status_code, 404)
+
+    def test_invalid_page_is_404(self):
+        self.assertEqual(self.client.get(self.url, {'page': 'abc'}).status_code, 404)
+
+    def test_count_includes_only_own_items(self):
+        WorkflowItem.objects.create(title='Theirs', owner=self.bob)
+        self.client.force_authenticate(self.bob)
+        body = self.client.get(self.url).json()
+        self.assertEqual(body['count'], 1)
+        self.assertEqual([item['title'] for item in body['results']], ['Theirs'])
 
 
 class WorkflowItemStatusUpdateTests(APITestCase):
