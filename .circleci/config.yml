@@ -92,9 +92,10 @@ jobs:
       - run:
           name: Deploy backend to Render
           command: |
+            : "${RENDER_BACKEND_DEPLOY_HOOK:?is not set in context render-deploy}"
             curl --fail --silent --show-error --get -X POST \
               --data-urlencode "imgURL=ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1}" \
-              "$BACKEND_DEPLOY_HOOK"
+              "$RENDER_BACKEND_DEPLOY_HOOK"
 
       - run:
           name: Verify backend deployment
@@ -117,13 +118,27 @@ jobs:
             echo "Backend deployment did not report expected SHA: ${EXPECTED_SHA}"
             exit 1
 
+      - run:
+          name: Smoke test backend database (wrong-password login must return 400)
+          command: |
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 -X POST \
+              -H "Content-Type: application/json" \
+              -d '{"username":"smoke-test","password":"wrong-password"}' \
+              https://workflowhub-backend-v1jm.onrender.com/api/auth/login/)
+            echo "Login with wrong password returned HTTP $CODE"
+            if [ "$CODE" != "400" ]; then
+              echo "Backend database check failed (expected 400)"
+              exit 1
+            fi
 
       - run:
           name: Deploy frontend to Render
           command: |
+            : "${RENDER_FRONTEND_DEPLOY_HOOK:?is not set in context render-deploy}"
             curl --fail --silent --show-error --get -X POST \
               --data-urlencode "imgURL=ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}" \
-              "$FRONTEND_DEPLOY_HOOK"
+              "$RENDER_FRONTEND_DEPLOY_HOOK"
+
       - run:
           name: Verify frontend deployment
           command: |
@@ -141,6 +156,7 @@ jobs:
 
             echo "Frontend deployment verification failed"
             exit 1
+
 
 workflows:
   ci:
