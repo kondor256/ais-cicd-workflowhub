@@ -183,6 +183,41 @@ jobs:
               ./frontend
             docker push ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}
 
+  # WFH-23: Run Playwright against Render after deployment.
+  e2e-render:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.65.0-noble
+    working_directory: ~/project
+    environment:
+      CI: "true"
+      E2E_BASE_URL: "https://workflowhub-frontend.onrender.com"
+
+    steps:
+      - checkout
+
+      - run:
+          name: Install Playwright dependencies
+          command: |
+            cd e2e
+            npm ci
+
+      - run:
+          name: Run E2E tests against Render
+          command: |
+            cd e2e
+            npx playwright test
+
+      - store_test_results:
+          path: e2e/test-results
+
+      - store_artifacts:
+          path: e2e/playwright-report
+          destination: render-playwright-report
+
+      - store_artifacts:
+          path: e2e/test-results
+          destination: render-test-results
+
   deploy-render:
     docker:
       - image: cimg/base:stable
@@ -282,6 +317,12 @@ workflows:
             - publish-render-images
           context:
             - render-deploy
+          filters:
+            branches:
+              only: main
+      - e2e-render:
+          requires:
+            - deploy-render
           filters:
             branches:
               only: main
