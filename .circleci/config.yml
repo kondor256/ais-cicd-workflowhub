@@ -109,7 +109,7 @@ jobs:
           command: |
             docker run --rm --network host \
               -e CI=true \
-              -e E2E_BASE_URL=http://127.0.0.1:8080 \
+              -e E2E_BASE_URL=http://localhost:8080 \
               -v "$PWD/e2e:/work" \
               -w /work \
               mcr.microsoft.com/playwright:v1.65.0-noble \
