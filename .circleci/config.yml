@@ -1,3 +1,4 @@
+
 version: 2.1
 
 jobs:
@@ -41,6 +42,100 @@ jobs:
           name: Run backend tests
           command: python manage.py test
 
+  # WFH-23: Playwright end-to-end testing
+  e2e:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: medium
+    working_directory: ~/project
+
+    # Disposable values for the isolated CI test environment.
+    environment:
+      POSTGRES_DB: workflowhub_ci
+      POSTGRES_USER: workflowhub_ci
+      POSTGRES_PASSWORD: ci-only-password-not-for-production
+      DJANGO_SECRET_KEY: ci-only-e2e-secret-not-for-production
+      DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8080"
+      VITE_API_URL: "http://localhost:8000"
+      CI: "true"
+
+    steps:
+      - checkout
+
+      - run:
+          name: Check Docker and Docker Compose
+          command: |
+            docker version
+            docker compose version
+
+      - run:
+          name: Start WorkFlowHub application
+          command: docker compose up -d --build --wait
+
+      - run:
+          name: Verify backend health
+          command: |
+            for attempt in $(seq 1 30); do
+              if curl -fsS --connect-timeout 5 --max-time 10 \
+                http://localhost:8000/api/health/; then
+                echo "Backend is ready"
+                exit 0
+              fi
+              echo "Backend not ready. Attempt $attempt/30"
+              sleep 2
+            done
+            echo "Backend health check failed"
+            exit 1
+
+      - run:
+          name: Verify frontend availability
+          command: |
+            for attempt in $(seq 1 30); do
+              if curl -fsS --connect-timeout 5 --max-time 10 \
+                -o /dev/null http://localhost:8080/; then
+                echo "Frontend is ready"
+                exit 0
+              fi
+              echo "Frontend not ready. Attempt $attempt/30"
+              sleep 2
+            done
+            echo "Frontend availability check failed"
+            exit 1
+
+      - run:
+          name: Run Playwright E2E tests
+          command: |
+            docker run --rm --network host \
+              -e CI=true \
+              -e E2E_BASE_URL=http://localhost:8080 \
+              -v "$PWD/e2e:/work" \
+              -w /work \
+              mcr.microsoft.com/playwright:v1.65.0-noble \
+              bash -lc "npm ci && npx playwright test"
+
+      - store_test_results:
+          path: e2e/test-results
+
+      - store_artifacts:
+          path: e2e/playwright-report
+          destination: playwright-report
+
+      - store_artifacts:
+          path: e2e/test-results
+          destination: playwright-test-results
+
+      - run:
+          name: Show Docker logs on failure
+          when: on_fail
+          command: docker compose logs --tail=100
+
+      - run:
+          name: Clean up test environment
+          when: always
+          command: docker compose down -v
+
   build-images:
     environment:
       VITE_API_URL: "https://workflowhub-backend-v1jm.onrender.com"
@@ -55,6 +150,7 @@ jobs:
       - run:
           name: Build frontend image
           command: docker build --build-arg VITE_API_URL="$VITE_API_URL" -t workflowhub-frontend:ci ./frontend
+
   publish-render-images:
     environment:
       VITE_API_URL: "https://workflowhub-backend-v1jm.onrender.com"
@@ -68,7 +164,7 @@ jobs:
           command: |
             echo "$GHCR_TOKEN" | docker login ghcr.io \
               -u "$GHCR_USER" --password-stdin
-      
+
       - run:
           name: Build and push backend image
           command: |
@@ -77,6 +173,7 @@ jobs:
               -t ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1} \
               ./backend
             docker push ghcr.io/kondor256/workflowhub-backend:circleci-${CIRCLE_SHA1}
+
       - run:
           name: Build and push frontend image
           command: |
@@ -85,6 +182,42 @@ jobs:
               -t ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1} \
               ./frontend
             docker push ghcr.io/kondor256/workflowhub-frontend:render-${CIRCLE_SHA1}
+
+  # WFH-23: Run Playwright against Render after deployment.
+  e2e-render:
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.65.0-noble
+    working_directory: ~/project
+    environment:
+      CI: "true"
+      E2E_BASE_URL: "https://workflowhub-frontend.onrender.com"
+
+    steps:
+      - checkout
+
+      - run:
+          name: Install Playwright dependencies
+          command: |
+            cd e2e
+            npm ci
+
+      - run:
+          name: Run E2E tests against Render
+          command: |
+            cd e2e
+            npx playwright test
+
+      - store_test_results:
+          path: e2e/test-results
+
+      - store_artifacts:
+          path: e2e/playwright-report
+          destination: render-playwright-report
+
+      - store_artifacts:
+          path: e2e/test-results
+          destination: render-test-results
+
   deploy-render:
     docker:
       - image: cimg/base:stable
@@ -157,16 +290,19 @@ jobs:
             echo "Frontend deployment verification failed"
             exit 1
 
-
 workflows:
   ci:
     jobs:
       - test-frontend
       - test-backend
+      - e2e
+
       - build-images:
           requires:
             - test-frontend
             - test-backend
+            - e2e
+
       - publish-render-images:
           requires:
             - build-images
@@ -175,11 +311,18 @@ workflows:
           filters:
             branches:
               only: main
+
       - deploy-render:
           requires:
             - publish-render-images
           context:
             - render-deploy
+          filters:
+            branches:
+              only: main
+      - e2e-render:
+          requires:
+            - deploy-render
           filters:
             branches:
               only: main

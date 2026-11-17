@@ -134,6 +134,39 @@ jobs:
           echo "::error::The frontend did not answer 200"
           exit 1
 
+      # WFH-23: Test the deployed Azure application with Playwright.
+      - name: Set up Node.js for Azure E2E
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install Playwright dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E against Azure
+        working-directory: e2e
+        env:
+          CI: 'true'
+          E2E_BASE_URL: ${{ steps.urls.outputs.frontend }}
+        run: npx playwright test
+
+      - name: Upload Azure Playwright reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: azure-playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+
       - name: Write the job summary
         if: always()
         run: |
