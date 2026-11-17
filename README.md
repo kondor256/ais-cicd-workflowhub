@@ -56,9 +56,7 @@ Work is planned with GitHub Issues, Milestones (sprints) and a Projects board: *
 5. Another team member reviews. At least **1 approval** is required before merging.
 6. Merge, delete the branch, and the issue closes automatically.
 
-
 **Release 1.1 exception:** The first WFH-17 pull request uses `Refs #37` because the issue remains open until the checklist v1.1 follow-up PR is merged. The follow-up PR uses `Closes #37`.
-
 
 ### Branch naming
 
@@ -123,7 +121,7 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 python manage.py migrate
 python manage.py runserver      # http://localhost:8000
 ```
-Check it: open http://localhost:8000/api/health/ and you should see `{"status": "ok"}`.
+Check it: open http://localhost:8000/api/health/ to see the service status and Git commit SHA. The SHA will be "unknown" when running locally without GIT_SHA.
 
 Run the tests:
 ```bash
@@ -134,7 +132,7 @@ python manage.py test
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/health/` | Health check, returns `{"status": "ok"}` |
+| GET | `/api/health/` | Health check, returns service status and Git commit SHA |
 | POST | `/api/auth/register/` | Create an account (public, see below) |
 | POST | `/api/auth/login/` | Log in and get a token (public, see below) |
 | POST | `/api/auth/logout/` | Delete the caller's token (needs a token) |
@@ -197,7 +195,7 @@ copy .env.example .env          # macOS/Linux: cp .env.example .env
 docker compose up --build
 ```
 - Frontend: http://localhost:8080
-- Backend health check: http://localhost:8000/api/health/ (should return `{"status": "ok"}`)
+- Backend health check: http://localhost:8000/api/health/ (returns the service status and Git commit SHA; the SHA is "unknown" when running locally without GIT_SHA)
 
 The backend container runs `python manage.py migrate` and then starts gunicorn. Stop with `Ctrl+C` or `docker compose down`. Add `-v` to also delete the database volume.
 
@@ -214,7 +212,6 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 ## Continuous integration (GitHub Actions)
 
-
 `.github/workflows/ci.yml` runs on every push and on pull requests to `main`. It has five jobs:
 
 1. `lint` runs Ruff on the Django backend and oxlint on the React frontend. It uses Python 3.12 and Node.js 22, installs the required dependencies, and reports code-quality issues automatically.
@@ -227,14 +224,11 @@ docker build --build-arg VITE_API_URL=http://localhost:8000 -t workflowhub-front
 
 The `lint` job runs independently of the test jobs. The team will configure `lint` as a required status check so that lint failures block pull request merges.
 
-
 5. `e2e` runs Playwright end-to-end tests in Chromium. It starts the complete application (Django, React and PostgreSQL) using `docker compose up -d --build --wait`, verifies backend and frontend availability, and runs the authentication, workflow lifecycle and ownership security tests. The job uploads Playwright HTML reports and test artifacts to GitHub Actions.
-
 
 The backend tests need the repository **secret** `DJANGO_SECRET_KEY` (Settings → Secrets and variables → Actions → Secrets → New repository secret). Use a throwaway value, for example a long random string, not the key used anywhere else. Without this secret the backend will not start and `test-backend` fails.
 
 The frontend build needs `VITE_API_URL`. It comes from a **repository variable** (Settings → Secrets and variables → Actions → Variables), not from the YAML. It is a variable and not a secret because the value is public inside the JavaScript bundle.
-
 
 ## Running end-to-end tests (Playwright)
 
@@ -338,16 +332,86 @@ Reports are available from the relevant GitHub Actions workflow run under **Arti
 
 The `e2e` check will be configured as a required pull request check by the repository administrator.
 
+## Continuous integration and deployment (CircleCI)
 
-## Continuous integration (CircleCI)
+The CircleCI configuration is defined in `.circleci/config.yml`.
 
-`.circleci/config.yml` runs the frontend tests and builds the same two Docker images as the GitHub Actions workflow, also without pushing them. Both jobs run on every branch (workflow `ci`). `test-frontend` uses the `cimg/node:22.23` image, caches `~/.npm` by the `package-lock.json` checksum and saves a JUnit report, so the results appear in the **Tests** tab of the job. `build-images` runs only if `test-frontend` passes (`requires`); it uses the `cimg/base:stable` executor and `setup_remote_docker`, because Docker builds run on a separate remote Docker engine. There is no layer cache in this pipeline.
+### CI workflow
 
-To use it:
+The `ci` workflow runs the following jobs:
 
-1. In CircleCI, set up the GitHub repository as a project.
-2. Add `VITE_API_URL` under Project Settings → Environment Variables. The frontend build reads it as `$VITE_API_URL`; it is not in the YAML. Without it the frontend is built with an empty API URL.
-3. Push a branch. The run appears in CircleCI, and the status is also shown on the commit or PR in GitHub.
+- `test-frontend`: Installs frontend dependencies, runs Vitest tests and stores JUnit test results.
+- `test-backend`: Installs backend dependencies and runs Django tests.
+- `build-images`: Builds the backend and frontend Docker images after both test jobs pass.
+- `publish-render-images`: Builds and pushes versioned Docker images to GitHub Container Registry (GHCR).
+- `deploy-render`: Deploys the backend and frontend images to Render and verifies their availability.
+
+The `publish-render-images` job runs only on the `main` branch. The `deploy-render` job also runs only on `main`. Feature branches can run the CI tests and build Docker images, but they do not publish images to GHCR or deploy to Render.
+
+### Required CircleCI contexts and environment variables
+
+The following CircleCI contexts are required:
+
+**`ghcr-push`**
+- `GHCR_USER`: GitHub Container Registry username.
+- `GHCR_TOKEN`: GitHub Container Registry access token.
+- `VITE_API_URL`: Backend API URL used when building the frontend image.
+
+**`render-deploy`**
+- `RENDER_BACKEND_DEPLOY_HOOK`: Render backend deployment hook.
+- `RENDER_FRONTEND_DEPLOY_HOOK`: Render frontend deployment hook.
+
+Secret values must be stored securely in CircleCI and must not be committed to the repository.
+
+### Docker image publishing
+
+Images are published to GitHub Container Registry using commit-specific tags:
+
+- Backend: `ghcr.io/kondor256/workflowhub-backend:circleci-<commit-sha>`
+- Frontend: `ghcr.io/kondor256/workflowhub-frontend:render-<commit-sha>`
+
+The backend image receives the Git commit SHA through the `GIT_SHA` Docker build argument. This value is exposed by the backend health endpoint.
+
+### Render deployment and verification
+
+The CircleCI deployment workflow targets these Render services:
+
+- Frontend: https://workflowhub-frontend.onrender.com
+- Backend: https://workflowhub-backend-v1jm.onrender.com
+
+The backend health endpoint is:
+
+`/api/health/`
+
+It returns the service status and deployed Git commit SHA.
+
+After deployment, CircleCI retries the backend health check and verifies that the reported SHA matches the expected commit. It then checks database-backed authentication by submitting an intentionally incorrect login and expecting HTTP `400`, before triggering and checking the frontend deployment. The frontend smoke test checks HTTP availability, not the exact frontend revision.
+
+The deployment job fails if verification does not succeed. Publishing images to GHCR alone does **not** confirm that Render deployment succeeded; check the `deploy-render` job in CircleCI.
+
+### Rollback procedure
+
+To roll back to a previous version:
+
+1. Identify the previous working commit SHA from the successful CircleCI pipeline.
+2. Locate the corresponding backend and frontend images in GHCR.
+3. Redeploy the previous backend image using its `circleci-<commit-sha>` tag.
+4. Redeploy the previous frontend image using its `render-<commit-sha>` tag.
+5. Verify the backend health endpoint and frontend availability after deployment.
+
+Do not delete previous working images, as they may be needed for rollback.
+
+To use the CircleCI deployment workflow:
+
+1. Set up the GitHub repository as a CircleCI project.
+
+2. Create the `ghcr-push` context and add `GHCR_USER`, `GHCR_TOKEN` and `VITE_API_URL`.
+
+3. Create the `render-deploy` context and add `RENDER_BACKEND_DEPLOY_HOOK` and `RENDER_FRONTEND_DEPLOY_HOOK`.
+
+4. Push a branch. The pipeline appears in CircleCI, and its status is shown on the commit or PR in GitHub.
+
+The `publish-render-images` job uses the `ghcr-push` context. The `deploy-render` job uses the `render-deploy` context.
 
 ## Continuous deployment to Azure (GitHub Actions)
 
@@ -424,7 +488,6 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml up --no-build
 
 Because `VITE_API_URL` is baked into the frontend bundle at build time, the published frontend image calls the API address that was set when the release was built.
 
-
 ## Code Review and Linting
 
 WorkFlowHub Release 1.1 uses checklist-guided pull request reviews and automated code-quality checks.
@@ -471,7 +534,6 @@ The `lint` job is configured as a required status check in the repository rulese
 Developers work on feature branches and open pull requests against `main`. Pull requests must include the linked issue, testing information, deployment impact, and author self-check.
 
 Reviewers follow `docs/CODE_REVIEW.md`, provide actionable feedback with checklist IDs, and verify that applicable CI checks pass before approving.
-
 
 ## Licence
 
