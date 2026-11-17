@@ -52,25 +52,42 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
       .toHaveValue('pending');
 
     // STEP 5: Change status to In Progress.
-    await item.getByRole('combobox', { name: 'Status' })
-      .selectOption('in_progress');
 
-    // Reload to verify the status was saved in the backend.
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes('/api/workflows/items/') &&
+        response.request().method() === 'PATCH' &&
+        response.ok()
+      ),
+      item.getByRole('combobox', { name: 'Status' })
+        .selectOption('in_progress'),
+    ]);
+
+    // Reload only after the backend confirms the update.
     await page.reload();
     item = findItem(title);
-
     await expect(item.getByRole('combobox', { name: 'Status' }))
       .toHaveValue('in_progress');
 
-    // STEP 6: Change status to Completed.
-    await item.getByRole('combobox', { name: 'Status' })
-      .selectOption('completed');
 
+    // STEP 6: Change status to Completed.
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes('/api/workflows/items/') &&
+        response.request().method() === 'PATCH' &&
+        response.ok()
+      ),
+      item.getByRole('combobox', { name: 'Status' })
+        .selectOption('completed'),
+    ]);
+
+    // Reload and verify the Completed status was saved.
     await page.reload();
     item = findItem(title);
-
     await expect(item.getByRole('combobox', { name: 'Status' }))
       .toHaveValue('completed');
+
+
 
     // STEP 7: Edit the workflow item.
     await item.getByRole('button', { name: 'Edit' }).click();
