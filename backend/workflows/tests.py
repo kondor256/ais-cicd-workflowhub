@@ -69,6 +69,132 @@ class WorkflowItemTests(APITestCase):
         self.assertFalse(WorkflowItem.objects.exists())
 
 
+class WorkflowItemStatusFilterTests(APITestCase):
+    url = '/api/workflows/items/'
+
+    def setUp(self):
+        self.alice = User.objects.create_user(
+            'alice', 'alice@example.com', 'Tr1cky-horse-staple'
+        )
+        self.bob = User.objects.create_user(
+            'bob', 'bob@example.com', 'Tr1cky-horse-staple'
+        )
+
+        self.pending = WorkflowItem.objects.create(
+            title='Pending task',
+            owner=self.alice,
+            status=WorkflowItem.Status.PENDING,
+        )
+        self.in_progress = WorkflowItem.objects.create(
+            title='In progress task',
+            owner=self.alice,
+            status=WorkflowItem.Status.IN_PROGRESS,
+        )
+        self.completed = WorkflowItem.objects.create(
+            title='Completed task',
+            owner=self.alice,
+            status=WorkflowItem.Status.COMPLETED,
+        )
+        self.bob_item = WorkflowItem.objects.create(
+            title='Bob private task',
+            owner=self.bob,
+            status=WorkflowItem.Status.IN_PROGRESS,
+        )
+
+        self.client.force_authenticate(self.alice)
+
+    def get_item_ids(self, response):
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+
+        # Supports both the existing API and WFH-21 pagination.
+        results = body['results'] if isinstance(body, dict) else body
+
+        return {item['id'] for item in results}
+
+    def test_filter_in_progress_returns_only_matching_items(self):
+        response = self.client.get(
+            self.url, {'status': 'in_progress'}
+        )
+        self.assertEqual(
+            self.get_item_ids(response),
+            {self.in_progress.id},
+        )
+
+    def test_filter_pending_and_completed(self):
+        cases = [
+            ('pending', self.pending.id),
+            ('completed', self.completed.id),
+        ]
+
+        for status, expected_id in cases:
+            with self.subTest(status=status):
+                response = self.client.get(
+                    self.url, {'status': status}
+                )
+                self.assertEqual(
+                    self.get_item_ids(response),
+                    {expected_id},
+                )
+
+    def test_all_returns_all_own_items(self):
+        response = self.client.get(self.url, {'status': 'all'})
+        self.assertEqual(
+            self.get_item_ids(response),
+            {
+                self.pending.id,
+                self.in_progress.id,
+                self.completed.id,
+            },
+        )
+
+    def test_no_status_returns_all_own_items(self):
+        response = self.client.get(self.url)
+        self.assertEqual(
+            self.get_item_ids(response),
+            {
+                self.pending.id,
+                self.in_progress.id,
+                self.completed.id,
+            },
+        )
+
+    def test_invalid_status_returns_400(self):
+        for status in ['invalid', 'done', '']:
+            with self.subTest(status=status):
+                response = self.client.get(
+                    self.url, {'status': status}
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('status', response.json())
+
+    def test_filter_never_exposes_another_users_items(self):
+        response = self.client.get(
+            self.url, {'status': 'in_progress'}
+        )
+        self.assertNotIn(
+            self.bob_item.id,
+            self.get_item_ids(response),
+        )
+
+        self.client.force_authenticate(self.bob)
+        response = self.client.get(
+            self.url, {'status': 'in_progress'}
+        )
+        self.assertEqual(
+            self.get_item_ids(response),
+            {self.bob_item.id},
+        )
+
+    def test_status_filter_does_not_block_item_detail(self):
+        response = self.client.get(
+            f'{self.url}{self.pending.id}/',
+            {'status': 'invalid'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['id'], self.pending.id)
+
+
 class WorkflowItemStatusUpdateTests(APITestCase):
     def setUp(self):
         self.alice = User.objects.create_user('alice', 'alice@example.com', 'Tr1cky-horse-staple')

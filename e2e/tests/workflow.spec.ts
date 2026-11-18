@@ -1,4 +1,3 @@
-
 import { test, expect, type Page } from '@playwright/test';
 
 test('workflow item lifecycle: create, status, edit and delete', async ({ page }) => {
@@ -68,6 +67,47 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
     item = findItem(title);
     await expect(item.getByRole('combobox', { name: 'Status' }))
       .toHaveValue('in_progress');
+
+    // WFH-16: Verify filtering by workflow status.
+    const statusFilter = page.getByRole('combobox', {
+      name: 'Filter by status',
+    });
+
+    // All is selected by default.
+    await expect(statusFilter).toHaveValue('all');
+    await expect(item).toBeVisible();
+
+    // Pending must hide the In Progress item.
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes('/api/workflows/items/') &&
+        new URL(response.url()).searchParams.get('status') === 'pending' &&
+        response.request().method() === 'GET' &&
+        response.ok()
+      ),
+      statusFilter.selectOption('pending'),
+    ]);
+
+    await expect(item).toHaveCount(0);
+
+    // In Progress must show the item again.
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().includes('/api/workflows/items/') &&
+        new URL(response.url()).searchParams.get('status') === 'in_progress' &&
+        response.request().method() === 'GET' &&
+        response.ok()
+      ),
+      statusFilter.selectOption('in_progress'),
+    ]);
+
+    await expect(item).toBeVisible();
+    await expect(item.getByRole('combobox', { name: 'Status' }))
+      .toHaveValue('in_progress');
+
+    // All must restore the unfiltered list.
+    await statusFilter.selectOption('all');
+    await expect(item).toBeVisible();
 
 
     // STEP 6: Change status to Completed.
