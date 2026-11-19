@@ -1,8 +1,21 @@
+
 import { api } from './client'
 
-// The list is paginated: {count, next, previous, results}. The page number is sent instead of
-// following `next`, because behind the HTTPS proxies on Azure and Render `next` may be http://.
-export const listItems = (page = 1) => api.get(`/api/workflows/items/?page=${page}`)
+// Fetch a paginated list of workflow items with optional status filtering.
+// Using page numbers avoids following absolute "next" URLs that may use
+// HTTP behind HTTPS proxies on Azure and Render.
+export const listItems = ({ status = 'all', page = 1 } = {}) => {
+  const params = new URLSearchParams()
+
+  params.set('page', String(page))
+
+  // "all" means no status filter.
+  if (status !== 'all') {
+    params.set('status', status)
+  }
+
+  return api.get(`/api/workflows/items/?${params.toString()}`)
+}
 
 export const createItem = (item) => api.post('/api/workflows/items/', item)
 

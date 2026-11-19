@@ -151,6 +151,30 @@ Endpoints are private by default (`IsAuthenticated`); only `health`, `register` 
 
 **Workflow items** have `id`, `title`, `description`, `status` (`pending`, `in_progress` or `completed`), `created_at` and `updated_at`. Creating takes JSON `{"title", "description"}`; `title` is required (max 200 characters) and a missing or blank one returns `400` with `{"title": ["Title is required"]}`. `description` is optional. The timestamps are read-only, and a new item is always `pending`, even if a `status` is sent. Editing takes `PATCH` with any of `title` and `description`, for example `{"title": "New title"}`: it returns `200` with the updated item and `updated_at` increases. An empty `title` returns `400` with `{"title": ["Title is required"]}` and nothing changes. Changing the status takes `PATCH` with JSON `{"status": "in_progress"}`: it returns `200` with the updated item and `updated_at` changes. A value that is not `pending`, `in_progress` or `completed` returns `400` with `{"status": [...]}` and the item stays unchanged. (`PUT` is also accepted by the endpoint and needs a `title`.) Deleting takes `DELETE` and returns `204`; the item is gone, so a later `GET` returns `404`. Trying to delete someone else's item returns `404` and the item is not touched. Each user sees only their own items.
 
+**Status filtering (WFH-16, #28):** The workflow list supports an optional `status` query parameter. Only items belonging to the authenticated user are returned.
+
+Supported values:
+
+- `?status=pending` — show pending items only.
+- `?status=in_progress` — show in-progress items only.
+- `?status=completed` — show completed items only.
+- `?status=all` — show items of every status.
+- No `status` parameter — show all statuses.
+
+For example:
+
+`GET /api/workflows/items/?status=in_progress&page=2`
+
+This returns the second page of the authenticated user's in-progress workflow items. Status filtering is applied before pagination, so the response `count` represents the total number of matching items.
+
+An invalid status value, including an empty value, returns HTTP `400` with a `status` validation error.
+
+**Frontend behaviour:** The Workflows page provides a "Filter by status" dropdown with All, Pending, In Progress and Completed options. Selecting a different status resets pagination to page 1. The "Load more" button preserves the selected filter when retrieving additional pages.
+
+When an item's status changes, it is removed from the displayed list if it no longer matches the selected filter.
+
+Status filtering and pagination are covered by backend tests, React component tests and Playwright workflow verification.
+
 **Pagination** (since WFH-21, #42): the list returns a page object instead of a plain array:
 ```json
 {"count": 25, "next": "http://…/api/workflows/items/?page=2", "previous": null, "results": [ /* up to 20 items */ ]}
