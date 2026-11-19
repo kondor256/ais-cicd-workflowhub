@@ -2,7 +2,7 @@
 # WorkFlowHub — Code Review Guide
 
 **Release:** 1.1  
-**Checklist version:** 1.0  
+**Checklist version:** 1.1
 **Team:** Yury, Rahul, Samjhana
 
 ## 1. Purpose
@@ -56,7 +56,8 @@ Every pull request follows these steps:
 
 2. **Understand the change.** Read the linked issue, acceptance criteria, PR description, and testing instructions.
 
-3. **Review the code.** Examine the changed files using the checklist in Section 6. Pay particular attention to functionality, security, CI/CD configuration, readability, and documentation.
+
+3. **Review the code.** Examine the changed files using the checklist in Section 6. Check both the pull request diff and the complete updated files before reporting defects. Distinguish deleted lines from added lines, verify existing tests, and pay particular attention to functionality, security, CI/CD configuration, readability, and documentation.
 
 4. **Submit a documented review.** Choose Request changes, Comment, or Approve. Include a checklist summary and identify any blocking issues. Do not submit an empty approval.
 
@@ -115,7 +116,7 @@ Use Pass, Fail, or N/A and explain any failed check in a review comment with the
 | ID | Review question |
 |---|---|
 | FT-1 | Does the change satisfy every acceptance criterion of its linked issue? |
-| FT-2 | Are tests included for new behaviour, covering backend and frontend where relevant, including at least one failure case? |
+| FT-2 | Are tests included for new behaviour, covering backend and frontend where relevant, including at least one failure case? Before requesting additional tests, has the reviewer checked the existing test coverage and CI results? |
 | FT-3 | Are edge cases handled, such as empty input, invalid values, or missing resources? |
 
 ### Security and Configuration
@@ -133,7 +134,7 @@ Use Pass, Fail, or N/A and explain any failed check in a review comment with the
 |---|---|
 | CI-1 | Have all applicable required checks passed in GitHub Actions and CircleCI? |
 | CI-2 | Are dependencies pinned appropriately, and do both Docker images build successfully? |
-| CI-3 | Have configuration changes been applied to both Azure and Render where necessary and recorded in the PR's deployment impact section? |
+| CI-3 | For deployment changes, are the correct build identifiers passed to Docker images, environment variables available in the required CI jobs, production branch filters correct, and post-deployment health and availability checks included? Are Azure and Render deployment impacts documented where relevant? |
 | CI-4 | Are database migrations included and safe for existing data, using nullable fields or appropriate defaults where needed? |
 
 ### Readability and Design
@@ -148,8 +149,8 @@ Use Pass, Fail, or N/A and explain any failed check in a review comment with the
 
 | ID | Review question |
 |---|---|
-| DOC-1 | Does the PR explain what changed, why it changed, how to test it, and which issue it addresses? |
-| DOC-2 | Are relevant README/API documents updated, and do commits follow the agreed naming convention with the issue number? |
+| DOC-1 | Does the PR explain what changed, why it changed, how to test it, and which issue it addresses? Has the description been updated to reflect the final scope, including deployment impact and any changes added during review? |
+| DOC-2 | Are relevant README/API documents updated, and do commits follow the agreed naming convention with the issue number? For deployment changes, are the pipeline steps, required configuration and context variable names (without secret values), service URLs, and rollback instructions documented? |
 
 Normally, the PR uses `Closes #N` for its issue. The first WFH-17 PR is an exception: it uses `Refs #37`, since the issue remains open until the checklist v1.1 follow-up PR is completed.
 
@@ -175,23 +176,92 @@ Every reviewer should finish with a short summary such as:
 
 The final review should account for all 16 checklist items, including any that are not applicable.
 
-## 8. Checklist Improvement Process
 
-Checklist v1 will be piloted during the reviews of WFH-18 and WFH-19.
+## 8. Pilot Review Retrospective and Checklist v1.1
 
-Reviewers and authors will record:
-- Items that are unclear
-- Checks that do not apply to certain PR types
-- Missing security, testing, or deployment concerns
-- Suggestions for reducing unnecessary review effort
+### 8.1 Pilot Reviews
 
-After the team retrospective, we will update the checklist to v1.1 in a separate pull request.
+Checklist v1.0 was evaluated using the code reviews of:
 
-Changes must be based on actual review experience rather than invented findings.
+- WFH-18 — GitHub Actions deployment to Azure (PR #44).
+- WFH-19 — CircleCI deployment to Render (PR #45).
+
+The findings below are based on actual GitHub review comments, author responses, and review outcomes.
+
+### 8.2 Findings from WFH-18 (PR #44)
+
+During the Azure deployment review, two concerns were raised about the health endpoint and its tests.
+
+The reviewer initially interpreted deleted lines in the GitHub diff as existing code and questioned whether the health endpoint returned the build version correctly. The reviewer also requested test updates that were already included in the branch.
+
+The author clarified both concerns by referring to the complete updated files, existing tests, and successful CI results. The reviewer subsequently approved the PR.
+
+**Lessons learned:**
+
+- Reviewers should distinguish removed and added lines in a PR diff.
+- Reviewers should inspect the final source file when a diff is unclear.
+- Existing tests and CI evidence should be checked before requesting additional test cases.
+
+These findings informed improvements to the review protocol and FT-2.
+
+### 8.3 Findings from WFH-19 (PR #45)
+
+The CircleCI-to-Render deployment review identified several concerns:
+
+- The backend Docker build needed the commit SHA to support deployment-version verification.
+- Deployment required backend health checks and frontend availability checks.
+- CI environment variables needed to be available in the correct jobs or contexts.
+- Temporary feature-branch deployment permissions needed to be removed before merging.
+- The README needed deployment configuration and rollback documentation.
+- The PR description needed updating after the scope of the changes expanded.
+
+The author addressed the deployment and documentation feedback, explained the environment-variable configuration, and received approval after further review.
+
+**Lessons learned:**
+
+- Passing image-build checks alone does not prove that the expected version has been deployed.
+- Reviewers should verify environment-variable scope, deployment verification, and branch filters.
+- Deployment documentation and PR descriptions must reflect the actual implementation.
+
+These findings informed improvements to CI-3, DOC-1, and DOC-2.
+
+### 8.4 Checklist v1.1 Decisions
+
+Based on both pilot reviews, the team identified opportunities to make the checklist more precise without increasing review complexity.
+
+The original 16 checklist items are retained.
+
+Version 1.1 improves:
+
+1. The review protocol: inspect the final code as well as the PR diff.
+2. FT-2: verify existing tests and CI results before requesting new coverage.
+3. CI-3: verify deployment identifiers, CI variable scope, branch filters, and post-deployment checks.
+4. DOC-1: ensure PR descriptions reflect the final scope.
+5. DOC-2: require clear deployment and rollback documentation where applicable.
+
+Automated linting continues to handle style-related checks, allowing human reviewers to focus on functionality, security, deployment behaviour, and maintainability.
+
+The specific changes and supporting PR evidence are recorded in Section 9.
+
 
 ## 9. Change Log
 
+The following changes were introduced in checklist v1.1 following the pilot reviews of WFH-18 (PR #44) and WFH-19 (PR #45).
+
 | Version | Item | Change | Reason | Evidence (PR #) |
 |---|---|---|---|---|
+| 1.1 | Review Protocol (Section 4) | Added guidance to inspect complete updated files, distinguish added and deleted lines, and verify existing code before reporting defects. | During the Azure review, deleted lines were initially interpreted as active code, leading to unnecessary change requests. | #44 |
+| 1.1 | FT-2 | Clarified that reviewers should check existing test coverage and CI results before requesting additional tests. | PR #44 already contained tests for the health endpoint's version field and default value, which were initially overlooked. | #44 |
+| 1.1 | CI-3 | Expanded deployment checks to cover build identifiers, environment-variable scope, production branch filters, backend health checks, and frontend availability. | PR #45 identified missing deployment verification and build configuration concerns, alongside questions about CI context variables and temporary branch filters. | #45 |
+| 1.1 | DOC-1 | Added a requirement to keep PR descriptions accurate when implementation scope changes during review. | PR #45's description initially covered CircleCI testing but did not reflect the expanded Render deployment and backend changes. | #45 |
+| 1.1 | DOC-2 | Expanded deployment documentation checks to include pipeline steps, configuration variable names, service URLs, and rollback instructions. | The reviewer requested additional README guidance to support deployment maintenance and troubleshooting. | #45 |
 
-The change log will be completed following the pilot reviews and retrospective.
+### Version 1.1 Summary
+
+Checklist v1.1 retains all 16 original review item IDs.
+
+The improvements clarify existing review expectations rather than introducing additional checklist items.
+
+The changes are supported by recorded review discussions and author responses in PRs #44 and #45.
+
+Automated lint checks continue to handle code-style issues, while reviewers focus on functionality, security, configuration, deployment verification, and documentation.
