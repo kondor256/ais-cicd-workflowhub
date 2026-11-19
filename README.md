@@ -137,7 +137,7 @@ python manage.py test
 | POST | `/api/auth/login/` | Log in and get a token (public, see below) |
 | POST | `/api/auth/logout/` | Delete the caller's token (needs a token) |
 | GET | `/api/auth/me/` | Current user, `{"username", "email"}` (needs a token) |
-| GET | `/api/workflows/items/` | List the caller's workflow items, newest first (needs a token) |
+| GET | `/api/workflows/items/?page=<n>` | List the caller's workflow items, newest first, **20 per page** (needs a token, see "Pagination" below) |
 | POST | `/api/workflows/items/` | Create a workflow item (needs a token, see below) |
 | GET | `/api/workflows/items/<id>/` | One of the caller's items; `404` for anyone else's (needs a token) |
 | PATCH | `/api/workflows/items/<id>/` | Update an item's `title`, `description` or `status`; `400` for an invalid value (for example an empty title), `404` for anyone else's item (needs a token) |
@@ -150,6 +150,36 @@ Endpoints are private by default (`IsAuthenticated`); only `health`, `register` 
 **Login** takes JSON `{"username", "password"}` and returns `200` with `{"token": "..."}`. A wrong password or unknown user returns `400` with `{"detail": "Invalid username or password"}` and creates no token. Logging in again returns the same token.
 
 **Workflow items** have `id`, `title`, `description`, `status` (`pending`, `in_progress` or `completed`), `created_at` and `updated_at`. Creating takes JSON `{"title", "description"}`; `title` is required (max 200 characters) and a missing or blank one returns `400` with `{"title": ["Title is required"]}`. `description` is optional. The timestamps are read-only, and a new item is always `pending`, even if a `status` is sent. Editing takes `PATCH` with any of `title` and `description`, for example `{"title": "New title"}`: it returns `200` with the updated item and `updated_at` increases. An empty `title` returns `400` with `{"title": ["Title is required"]}` and nothing changes. Changing the status takes `PATCH` with JSON `{"status": "in_progress"}`: it returns `200` with the updated item and `updated_at` changes. A value that is not `pending`, `in_progress` or `completed` returns `400` with `{"status": [...]}` and the item stays unchanged. (`PUT` is also accepted by the endpoint and needs a `title`.) Deleting takes `DELETE` and returns `204`; the item is gone, so a later `GET` returns `404`. Trying to delete someone else's item returns `404` and the item is not touched. Each user sees only their own items.
+
+**Status filtering (WFH-16, #28):** The workflow list supports an optional `status` query parameter. Only items belonging to the authenticated user are returned.
+
+Supported values:
+
+- `?status=pending` — show pending items only.
+- `?status=in_progress` — show in-progress items only.
+- `?status=completed` — show completed items only.
+- `?status=all` — show items of every status.
+- No `status` parameter — show all statuses.
+
+For example:
+
+`GET /api/workflows/items/?status=in_progress&page=2`
+
+This returns the second page of the authenticated user's in-progress workflow items. Status filtering is applied before pagination, so the response `count` represents the total number of matching items.
+
+An invalid status value, including an empty value, returns HTTP `400` with a `status` validation error.
+
+**Frontend behaviour:** The Workflows page provides a "Filter by status" dropdown with All, Pending, In Progress and Completed options. Selecting a different status resets pagination to page 1. The "Load more" button preserves the selected filter when retrieving additional pages.
+
+When an item's status changes, it is removed from the displayed list if it no longer matches the selected filter.
+
+Status filtering and pagination are covered by backend tests, React component tests and Playwright workflow verification.
+
+**Pagination** (since WFH-21, #42): the list returns a page object instead of a plain array:
+```json
+{"count": 25, "next": "http://…/api/workflows/items/?page=2", "previous": null, "results": [ /* up to 20 items */ ]}
+```
+`count` is the total number of the caller's items, `results` holds at most 20 items, and `next` / `previous` are `null` on the last / first page. Without `?page` the first page is returned. A page beyond the last one or a non-numeric page returns `404`. Items are ordered by `created_at`, newest first, then by `id`, so pages never overlap. The frontend sends `?page=N` itself and uses `next` only to know whether more pages exist, because behind an HTTPS proxy (Azure, Render) the absolute `next` URL may start with `http://`. **Any client that expected a plain array must read `results`.**
 
 **Authenticated requests** send the header `Authorization: Token <token>`. A missing or invalid token returns `401`. **Logout** deletes the token (`204`), so it stops working at once.
 
@@ -170,7 +200,7 @@ Pages (React Router):
 | `/` | Home, with the API status |
 | `/register` | Registration form (calls `POST /api/auth/register/`, then goes to `/login`) |
 | `/login` | Login form (calls `POST /api/auth/login/`, then goes to `/workflows`) |
-| `/workflows` | Protected page: greets the user from `GET /api/auth/me/`, has a "New item" form (title, description) and lists the user's items newest first, with an empty-state message. Each item shows a status badge (colour, symbol and text) and a Status dropdown (Pending / In Progress / Completed) that saves with `PATCH`; the list updates at once and goes back to the old status with an error message if the call fails. Each item also has an **Edit** button that opens an inline form pre-filled with the title and description. **Save** sends `PATCH`, shows validation errors from the API (for example "Title is required") and updates the item and its "Updated" time; **Cancel** closes the form without a request. Each item also has a **Delete** button that shows an in-page confirmation ("Delete this item? Confirm / Cancel"): **Confirm** sends `DELETE` and removes the item from the list, **Cancel** keeps it (an error message appears if the call fails). Redirects to `/login` without a token |
+| `/workflows` | Protected page: greets the user from `GET /api/auth/me/`, has a "New item" form (title, description) and lists the user's items newest first, with an empty-state message. Each item shows a status badge (colour, symbol and text) and a Status dropdown (Pending / In Progress / Completed) that saves with `PATCH`; the list updates at once and goes back to the old status with an error message if the call fails. Each item also has an **Edit** button that opens an inline form pre-filled with the title and description. **Save** sends `PATCH`, shows validation errors from the API (for example "Title is required") and updates the item and its "Updated" time; **Cancel** closes the form without a request. Each item also has a **Delete** button that shows an in-page confirmation ("Delete this item? Confirm / Cancel"): **Confirm** sends `DELETE` and removes the item from the list, **Cancel** keeps it (an error message appears if the call fails). The list loads 20 items at a time and shows "Showing X of Y items"; a **Load more** button fetches the next page and appends it (shown only while more pages exist; an error message appears if it fails). Redirects to `/login` without a token |
 
 The header shows Login and Register links for anonymous users and a **Log out** button when logged in. The token is kept in `localStorage` (key `workflowhub.token`) and sent with every API request. A `401` response clears it.
 
@@ -181,7 +211,7 @@ Run the tests:
 npm test                        # runs once, as in CI
 npm run test:watch              # re-runs the tests when a file changes
 ```
-The tests use Vitest and React Testing Library in jsdom (a browser-like environment), so no browser and no backend are needed. They sit next to the code as `*.test.jsx` files and cover the status badge, the workflow list (status change, delete with confirmation), the protected route redirect and the login page (success, wrong password, server error). The login tests replace `fetch` with a stub, so the real API client and `AuthProvider` run without a server.
+The tests use Vitest and React Testing Library in jsdom (a browser-like environment), so no browser and no backend are needed. They sit next to the code as `*.test.jsx` files and cover the status badge, the workflow list (status change, delete with confirmation), the protected route redirect, the login page (success, wrong password, server error) and the workflows page pagination (first page and count, Load more, last page, no duplicates, failed Load more). The login and workflows page tests replace `fetch` with a stub, so the real API client and `AuthProvider` run without a server.
 
 ## Run with Docker
 

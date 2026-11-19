@@ -81,8 +81,15 @@ test('user B cannot see user A workflow item', async ({ browser }) => {
     const response = await responsePromise;
     expect(response.ok()).toBeTruthy();
 
-    const items = await response.json();
-    expect(Array.isArray(items)).toBe(true);
+    // WFH-21 (#42): the list is paginated: {count, next, previous, results}.
+    const body = await response.json();
+    expect(Array.isArray(body.results)).toBe(true);
+
+    // User B is new, so the API must report 0 items in total. This also
+    // covers items that would be on later pages, not only on page 1.
+    expect(body.count).toBe(0);
+
+    const items = body.results;
 
     const exposed = items.some(
       (item: { title: string }) => item.title === privateTitle
