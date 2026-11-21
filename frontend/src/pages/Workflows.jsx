@@ -7,6 +7,9 @@ import WorkflowList from '../components/WorkflowList'
 function Workflows() {
   const [username, setUsername] = useState(null)
   const [items, setItems] = useState([])
+  const [count, setCount] = useState(0)
+  const [nextPage, setNextPage] = useState(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [updateError, setUpdateError] = useState('')
@@ -17,16 +20,41 @@ function Workflows() {
       .get('/api/auth/me/')
       .then((data) => setUsername(data.username))
       .catch(() => {})
-    listItems()
+    listItems(1)
       .then((data) => {
-        setItems(data)
+        setItems(data.results)
+        setCount(data.count)
+        setNextPage(data.next ? 2 : null)
         setLoaded(true)
       })
       .catch(() => setLoadError('Could not load your workflow items.'))
   }, [])
 
+  const handleLoadMore = async () => {
+    setLoadError('')
+    setLoadingMore(true)
+    try {
+      const data = await listItems(nextPage)
+      // Items created since the first page shift the pages, so the next page can repeat an
+      // item that is already shown. Keep each id only once.
+      setItems((current) => {
+        const shown = new Set(current.map((item) => item.id))
+        return [...current, ...data.results.filter((item) => !shown.has(item.id))]
+      })
+      setCount(data.count)
+      setNextPage(data.next ? nextPage + 1 : null)
+    } catch {
+      setLoadError('Could not load more items. Please try again.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   // The API returns newest first, so a new item goes to the top.
-  const handleCreated = (item) => setItems((current) => [item, ...current])
+  const handleCreated = (item) => {
+    setItems((current) => [item, ...current])
+    setCount((current) => current + 1)
+  }
 
   const handleItemSaved = (saved) =>
     setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))
@@ -36,6 +64,7 @@ function Workflows() {
     try {
       await deleteItem(id)
       setItems((current) => current.filter((item) => item.id !== id))
+      setCount((current) => current - 1)
     } catch {
       setUpdateError('Could not delete the item. Please try again.')
     }
@@ -74,6 +103,16 @@ function Workflows() {
           onItemSaved={handleItemSaved}
           onDelete={handleDelete}
         />
+      )}
+      {loaded && items.length > 0 && (
+        <p className="meta">
+          Showing {items.length} of {count} items
+        </p>
+      )}
+      {nextPage && (
+        <button type="button" onClick={handleLoadMore} disabled={loadingMore}>
+          {loadingMore ? 'Loading…' : 'Load more'}
+        </button>
       )}
     </main>
   )
