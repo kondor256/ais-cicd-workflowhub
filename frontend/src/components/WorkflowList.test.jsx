@@ -53,9 +53,9 @@ describe('WorkflowList', () => {
     renderList()
     const [first, second] = screen.getAllByRole('listitem')
     expect(first).toHaveTextContent('Write the report')
-    expect(first.querySelector('.status-badge')).toHaveTextContent('In Progress')
+    expect(first.querySelector('.status-in_progress')).toHaveTextContent('In Progress')
     expect(second).toHaveTextContent('Submit the evidence')
-    expect(second.querySelector('.status-badge')).toHaveTextContent('Pending')
+    expect(second.querySelector('.status-pending')).toHaveTextContent('Pending')
   })
 
   it('reports a status change with the item id and the new status', async () => {
