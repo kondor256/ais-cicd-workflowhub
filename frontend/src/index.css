@@ -94,3 +94,7 @@ button {
   margin-top: 0.5rem;
   font-size: 0.875rem;
 }
+.status-overdue {
+  color: #b00020;
+  background: #fde7e9;
+}
