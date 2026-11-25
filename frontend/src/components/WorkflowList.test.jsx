@@ -11,6 +11,7 @@ const items = [
     status: 'in_progress',
     created_at: '2026-10-20T09:00:00Z',
     updated_at: '2026-10-21T09:00:00Z',
+    due_date: '2000-01-01',
   },
   {
     id: 2,
@@ -19,6 +20,16 @@ const items = [
     status: 'pending',
     created_at: '2026-10-22T09:00:00Z',
     updated_at: '2026-10-22T09:00:00Z',
+    due_date: null,
+  },
+  {
+    id: 3,
+    title: 'Completed task',
+    description: '',
+    status: 'completed',
+    created_at: '2026-10-23T09:00:00Z',
+    updated_at: '2026-10-23T09:00:00Z',
+    due_date: '2000-01-01',
   },
 ]
 
@@ -61,5 +72,23 @@ describe('WorkflowList', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(onDelete).toHaveBeenCalledWith(2)
+  })
+  
+  it('shows an Overdue badge for an overdue item that is not completed', () => {
+    renderList()
+    const first = screen.getByText('Write the report').closest('li')
+    expect(first).toHaveTextContent('Overdue')
+  })
+
+  it('does not show an Overdue badge when there is no due date', () => {
+    renderList()
+    const second = screen.getByText('Submit the evidence').closest('li')
+    expect(second).not.toHaveTextContent('Overdue')
+  })
+  
+  it('does not show an Overdue badge for a completed item', () => {
+    renderList()
+    const completed = screen.getByText('Completed task').closest('li')
+    expect(completed).not.toHaveTextContent('Overdue')
   })
 })
