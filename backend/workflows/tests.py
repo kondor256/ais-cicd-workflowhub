@@ -220,3 +220,55 @@ class WorkflowItemDeleteTests(APITestCase):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.delete(self.url).status_code, 401)
         self.assertTrue(WorkflowItem.objects.filter(id=self.item.id).exists())
+        
+class WorkflowItemDueDateTests(APITestCase):
+    url = '/api/workflows/items/'
+
+    def setUp(self):
+        self.alice = User.objects.create_user(
+            'alice', 'alice@example.com', 'Tr1cky-horse-staple'
+        )
+        self.client.force_authenticate(self.alice)
+
+    def test_create_item_with_due_date(self):
+        response = self.client.post(
+            self.url,
+            {'title': 'Finish assignment', 'due_date': '2026-12-01'}
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['due_date'], '2026-12-01')
+
+        item = WorkflowItem.objects.get(title='Finish assignment')
+        self.assertEqual(str(item.due_date), '2026-12-01')
+
+    def test_create_item_without_due_date(self):
+        response = self.client.post(
+            self.url,
+            {'title': 'No deadline task'}
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.json()['due_date'])
+
+    def test_update_due_date(self):
+        item = WorkflowItem.objects.create(
+            title='Update deadline',
+            owner=self.alice
+        )
+        response = self.client.patch(
+            f'{self.url}{item.id}/',
+            {'due_date': '2026-12-15'}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['due_date'], '2026-12-15')
+
+        item.refresh_from_db()
+        self.assertEqual(str(item.due_date), '2026-12-15')
+
+    def test_invalid_due_date_rejected(self):
+        response = self.client.post(
+            self.url,
+            {'title': 'Invalid date task', 'due_date': 'not-a-date'}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('due_date', response.json())
+
