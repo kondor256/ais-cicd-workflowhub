@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { createItem } from '../api/workflows'
 
 function WorkflowForm({ onCreated }) {
-  const [values, setValues] = useState({ title: '', description: '' })
+  const [values, setValues] = useState({
+    title: '',
+    description: '',
+    due_date: '',
+  })
   const [titleError, setTitleError] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -17,8 +21,11 @@ function WorkflowForm({ onCreated }) {
     setError('')
     setSending(true)
     try {
-      const item = await createItem(values)
-      setValues({ title: '', description: '' })
+      const item = await createItem({
+        ...values,
+        due_date: values.due_date || null,
+      })
+      setValues({ title: '', description: '', due_date: '' })
       onCreated(item)
     } catch (err) {
       if (err.status === 400 && err.body?.title) {
@@ -54,6 +61,16 @@ function WorkflowForm({ onCreated }) {
           name="description"
           rows={3}
           value={values.description}
+          onChange={handleChange}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="due_date">Due date (optional)</label>
+        <input
+          id="due_date"
+          name="due_date"
+          type="date"
+          value={values.due_date}
           onChange={handleChange}
         />
       </div>

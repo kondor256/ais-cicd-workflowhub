@@ -2,6 +2,16 @@ import { useState } from 'react'
 import { STATUS_LABELS } from '../statuses'
 import StatusBadge from './StatusBadge'
 import WorkflowEditForm from './WorkflowEditForm'
+function isOverdue(item) {
+  if (!item.due_date || item.status === 'completed') {
+    return false
+  }
+
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+  return item.due_date < today
+}
 
 function WorkflowList({ items, onStatusChange, onItemSaved, onDelete }) {
   const [editingId, setEditingId] = useState(null)
@@ -39,6 +49,15 @@ function WorkflowList({ items, onStatusChange, onItemSaved, onDelete }) {
           <li key={item.id}>
             <h3>{item.title}</h3>
             {item.description && <p>{item.description}</p>}
+            {item.due_date && (
+              <p className="meta">
+                Due date:{' '}
+                <time dateTime={item.due_date}>{item.due_date}</time>
+                {isOverdue(item) && (
+                  <span className="status-badge status-overdue"> ⚠ Overdue</span>
+                )}
+              </p>
+            )}
             <p className="meta">
               <StatusBadge status={item.status} /> · Created{' '}
               <time dateTime={item.created_at}>

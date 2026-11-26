@@ -10,6 +10,8 @@ class WorkflowItem(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING)
     owner = models.ForeignKey(

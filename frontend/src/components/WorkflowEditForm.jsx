@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { updateItem } from '../api/workflows'
 
 function WorkflowEditForm({ item, onSaved, onCancel }) {
-  const [values, setValues] = useState({ title: item.title, description: item.description })
+  const [values, setValues] = useState({ title: item.title, description: item.description,
+  due_date: item.due_date || '', })
   const [titleError, setTitleError] = useState('')
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
@@ -17,7 +18,10 @@ function WorkflowEditForm({ item, onSaved, onCancel }) {
     setError('')
     setSending(true)
     try {
-      const updated = await updateItem(item.id, values)
+      const updated = await updateItem(item.id, {
+        ...values,
+        due_date: values.due_date || null,
+      })
       onSaved(updated)
     } catch (err) {
       if (err.status === 400 && err.body?.title) {
@@ -31,6 +35,7 @@ function WorkflowEditForm({ item, onSaved, onCancel }) {
 
   const titleId = `edit-title-${item.id}`
   const descriptionId = `edit-description-${item.id}`
+  const dueDateId = `edit-due-date-${item.id}`
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -54,6 +59,16 @@ function WorkflowEditForm({ item, onSaved, onCancel }) {
           name="description"
           rows={3}
           value={values.description}
+          onChange={handleChange}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor={dueDateId}>Due date (optional)</label>
+        <input
+          id={dueDateId}
+          name="due_date"
+          type="date"
+          value={values.due_date}
           onChange={handleChange}
         />
       </div>
