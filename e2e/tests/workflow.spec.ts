@@ -10,6 +10,8 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
   const editedTitle = `e2e-${runId}-updated-workflow`;
   const description = 'Created by Playwright';
   const editedDescription = 'Updated by Playwright';
+  const dueDate = '2026-12-10';
+  const editedDueDate = '2026-12-15';
 
   // Find a particular item using its unique heading.
   const findItem = (name: string) =>
@@ -41,11 +43,13 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
     // STEP 3: Create a workflow item.
     await page.getByLabel('Title').fill(title);
     await page.getByLabel('Description').fill(description);
+    await page.getByLabel('Due date (optional)').fill(dueDate);
     await page.getByRole('button', { name: 'Add item' }).click();
 
     let item = findItem(title);
     await expect(item).toBeVisible();
     itemCreated = true;
+    await expect(item).toContainText(`Due date: ${dueDate}`);
 
     // STEP 4: Check initial status: Pending.
     await expect(item.getByRole('combobox', { name: 'Status' }))
@@ -96,10 +100,12 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
 
     await editForm.getByLabel('Title').fill(editedTitle);
     await editForm.getByLabel('Description').fill(editedDescription);
+    await editForm.getByLabel('Due date (optional)').fill(editedDueDate);
     await editForm.getByRole('button', { name: 'Save' }).click();
 
     await expect(findItem(editedTitle)).toBeVisible();
     await expect(findItem(editedTitle)).toContainText(editedDescription);
+    await expect(findItem(editedTitle)).toContainText(`Due date: ${editedDueDate}`);
 
     // Verify edits were persisted.
     await page.reload();
@@ -107,6 +113,7 @@ test('workflow item lifecycle: create, status, edit and delete', async ({ page }
     const editedItem = findItem(editedTitle);
     await expect(editedItem).toBeVisible();
     await expect(editedItem).toContainText(editedDescription);
+    await expect(editedItem).toContainText(`Due date: ${editedDueDate}`);
 
     // STEP 8: Delete the workflow item.
     await editedItem.getByRole('button', { name: 'Delete' }).click();
